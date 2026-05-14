@@ -67,6 +67,10 @@ Requirements: Rust stable (1.83+).
 
 ## Run
 
+Smoke-test the full pipeline with no external dependencies. `minimal.toml`
+runs `/bin/cat` under the daemon, exercises stdio routing, audit logging,
+and the IPC protocol end to end:
+
 ```bash
 cargo run -p hatch-daemon -- --foreground --state-dir ./.hatch &
 cargo run -p hatch-cli   -- --state-dir ./.hatch status
@@ -75,6 +79,16 @@ cargo run -p hatch-cli   -- --state-dir ./.hatch install --file examples/manifes
 cargo run -p hatch-cli   -- --state-dir ./.hatch run minimal --seconds 2
 cargo run -p hatch-cli   -- --state-dir ./.hatch audit
 cargo run -p hatch-cli   -- --state-dir ./.hatch daemon stop
+```
+
+For a real MCP server, install `examples/manifests/filesystem.toml`. It
+wraps the official `@modelcontextprotocol/server-filesystem` scoped to
+`$PROJECT_ROOT`. Requires Node:
+
+```bash
+cargo run -p hatch-cli -- --state-dir ./.hatch \
+    install --file examples/manifests/filesystem.toml --allow-unsigned
+cargo run -p hatch-cli -- --state-dir ./.hatch run filesystem --seconds 5
 ```
 
 Daemon flags worth knowing:
@@ -155,7 +169,7 @@ tool_call_timeout_seconds = 60
 require_approval = ["delete_*", "admin_*"]
 
 [[tool_policy.rules]]
-tool = "push_files"
+tool = "create_or_update_file"
 when = "args.branch in ['main', 'master', 'production']"
 action = "require_approval"
 
@@ -185,14 +199,8 @@ Items that require external action or a real host:
   schema are in `manifests/`; the static site is a separate Astro project not
   in this repository.
 - Paid third-party security audit (Trail of Bits, Cure53, NCC, or equivalent).
-- Live exercise of the Linux backend. The Linux backend cross-compiles cleanly
-  for `x86_64-unknown-linux-gnu`, but the syscall-level isolation can only be
-  verified on a Linux host with user namespaces, cgroups v2, and Landlock 5.13+.
-  CI runs the workspace tests on `ubuntu-latest` and `macos-latest`; full
-  end-to-end sandbox verification needs a real Linux environment.
-- `.github/workflows/fuzz.yml` and `.github/workflows/release.yml`. The IDE's
-  workflow-security hook blocked these two files because they use
-  `${{ matrix.target }}` and `${{ inputs.version }}` interpolation. Both flow
-  through `env:` blocks, which is the documented safe pattern, but the hook is
-  conservative. They need to be added manually. The two workflows that were
-  accepted (`ci.yml`, `security-audit.yml`) are in `.github/workflows/`.
+- Live exercise of the Linux backend on a real Linux host with user
+  namespaces, cgroups v2, and Landlock 5.13+. The crate cross-compiles
+  cleanly for `x86_64-unknown-linux-gnu` and CI runs the workspace tests on
+  `ubuntu-latest`, but the namespace + cgroup + iptables wiring is only
+  exercised on a real host.

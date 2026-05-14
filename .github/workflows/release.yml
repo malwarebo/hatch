@@ -1,0 +1,111 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag without leading v (e.g. 0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: build
+        run: |
+          cargo build --release --locked --target "$TARGET"
+          mkdir -p "dist/$TARGET"
+          cp "target/$TARGET/release/hatch"        "dist/$TARGET/"
+          cp "target/$TARGET/release/hatch-daemon" "dist/$TARGET/"
+          cp "target/$TARGET/release/hatch-shim"   "dist/$TARGET/"
+          cp LICENSE README.md "dist/$TARGET/"
+          tar -czf "dist/hatch-$TARGET.tar.gz" -C "dist/$TARGET" .
+          (cd dist && shasum -a 256 "hatch-$TARGET.tar.gz" > "hatch-$TARGET.tar.gz.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.target }}
+          path: dist/hatch-*.tar.gz*
+
+  build-macos:
+    runs-on: macos-14
+    env:
+      VERSION_INPUT: ${{ inputs.version }}
+      REF_NAME: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: resolve version
+        id: ver
+        run: |
+          if [ -n "${VERSION_INPUT:-}" ]; then
+            echo "version=$VERSION_INPUT" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: build universal binaries
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+          APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
+          APPLE_NOTARY_PROFILE: ${{ secrets.APPLE_NOTARY_PROFILE }}
+        run: |
+          cargo build --release --locked --target x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          mkdir -p dist
+          if [ -n "${APPLE_DEVELOPER_ID_APPLICATION:-}" ]; then
+            ./scripts/notarize-macos.sh "$VERSION"
+          else
+            for bin in hatch hatch-daemon hatch-shim; do
+              lipo -create -output "dist/$bin" \
+                "target/x86_64-apple-darwin/release/$bin" \
+                "target/aarch64-apple-darwin/release/$bin"
+            done
+            tar -czf "dist/hatch-$VERSION-universal-apple-darwin.tar.gz" \
+              -C dist hatch hatch-daemon hatch-shim
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            dist/*.pkg
+            dist/*.tar.gz
+
+  publish:
+    needs:
+      - build-linux
+      - build-macos
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
