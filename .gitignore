@@ -1,0 +1,16 @@
+/target
+/dist
+/docs/book
+**/*.rs.bk
+Cargo.lock.bak
+.DS_Store
+*.swp
+*.swo
+*.swn
+.idea/
+*.iml
+.vscode/
+fuzz/corpus/
+fuzz/artifacts/
+
+.hatch-*

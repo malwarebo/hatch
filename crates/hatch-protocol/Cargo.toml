@@ -1,0 +1,24 @@
+[package]
+name = "hatch-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "JSON-RPC and MCP message types used by the shim's protocol mediator."
+
+[dependencies]
+hatch-core = { path = "../hatch-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "rt", "macros"] }
+regex = { workspace = true }
+glob = { workspace = true }
+tracing = { workspace = true }
+simd-json = { workspace = true }
+bytes = "1"
+memchr = "2"
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -1,0 +1,50 @@
+schema_version = "1.0"
+name = "notion"
+version = "1.0.0"
+description = "Notion MCP server: read pages, query databases, append content."
+homepage = "https://github.com/makenotion/notion-mcp-server"
+license = "MIT"
+
+[command]
+program = "npx"
+args = ["-y", "@notionhq/notion-mcp-server"]
+working_dir = "$HATCH_RUNTIME_DIR"
+
+[network]
+allow_https = ["api.notion.com", "www.notion.so", "*.amazonaws.com"]
+allow_dns = ["api.notion.com", "www.notion.so", "*.amazonaws.com"]
+allow_http = false
+
+[filesystem]
+read = []
+write = []
+tmpfs = ["/tmp"]
+
+[env]
+passthrough = ["NOTION_API_KEY", "OPENAPI_MCP_HEADERS"]
+
+[exec]
+allow_subprocess = false
+allow_binaries = []
+
+[resources]
+memory_mb = 256
+cpu_percent = 25
+pids_max = 25
+nofile = 128
+tool_call_timeout_seconds = 60
+
+[tool_policy]
+require_approval = []
+deny = []
+
+[[tool_policy.rules]]
+tool = "delete_block"
+action = "require_approval"
+
+[platform.linux]
+seccomp_preset = "strict"
+landlock = true
+
+[platform.macos]
+endpoint_security = false

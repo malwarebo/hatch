@@ -1,0 +1,22 @@
+[package]
+name = "hatch-proxy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "SNI-filtering HTTPS proxy and DNS allowlist resolver."
+
+[dependencies]
+hatch-core = { path = "../hatch-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util", "rt", "macros", "sync", "time"] }
+hickory-resolver = { workspace = true }
+hickory-proto = { workspace = true }
+bytes = "1"
+futures = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

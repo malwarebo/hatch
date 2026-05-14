@@ -1,0 +1,25 @@
+[package]
+name = "hatch-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Workspace-level integration tests for hatch."
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hatch-ipc = { path = "../hatch-ipc" }
+
+[dev-dependencies]
+hatch-audit = { path = "../hatch-audit" }
+hatch-core = { path = "../hatch-core" }
+hatch-ipc = { path = "../hatch-ipc" }
+hatch-state = { path = "../hatch-state" }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"
+tokio = { workspace = true }

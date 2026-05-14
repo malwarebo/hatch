@@ -1,0 +1,23 @@
+[package]
+name = "hatch-sandbox-linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Linux sandbox backend: namespaces, seccomp, Landlock, cgroups."
+
+[dependencies]
+hatch-core = { path = "../hatch-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["process", "rt", "io-util", "macros"] }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { workspace = true, features = ["fs", "process", "thread", "mount", "system", "pipe", "termios"] }
+seccompiler = "0.4"
+landlock = "0.4"
+libc = "0.2"

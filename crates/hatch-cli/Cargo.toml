@@ -1,0 +1,34 @@
+[package]
+name = "hatch-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "The hatch command-line interface."
+
+[[bin]]
+name = "hatch"
+path = "src/main.rs"
+
+[dependencies]
+hatch-core = { path = "../hatch-core" }
+hatch-hostcfg = { path = "../hatch-hostcfg" }
+hatch-ipc = { path = "../hatch-ipc" }
+hatch-registry = { path = "../hatch-registry" }
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dirs = { workspace = true }
+toml = { workspace = true }
+regex = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+hatch-sandbox-linux = { path = "../hatch-sandbox-linux" }

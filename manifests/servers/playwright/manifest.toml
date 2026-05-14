@@ -1,0 +1,53 @@
+schema_version = "1.0"
+name = "playwright"
+version = "0.0.27"
+description = "Playwright MCP server: drive a browser for automation and testing."
+homepage = "https://github.com/microsoft/playwright-mcp"
+license = "Apache-2.0"
+
+[command]
+program = "npx"
+args = ["-y", "@playwright/mcp@latest"]
+working_dir = "$HATCH_RUNTIME_DIR"
+
+[network]
+allow_https = ["*"]
+allow_dns = ["*"]
+allow_http = true
+rate_limit_mbps = 20
+max_bytes_per_connection_mb = 200
+
+[filesystem]
+read = ["$HATCH_RUNTIME_DIR"]
+write = ["$HATCH_RUNTIME_DIR"]
+tmpfs = ["/tmp", "/dev/shm"]
+
+[env]
+passthrough = ["DISPLAY"]
+
+[exec]
+allow_subprocess = true
+allow_binaries = [
+    "/usr/bin/chromium",
+    "/usr/bin/google-chrome",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Firefox.app/Contents/MacOS/firefox",
+]
+
+[resources]
+memory_mb = 2048
+cpu_percent = 75
+pids_max = 200
+nofile = 1024
+tool_call_timeout_seconds = 120
+
+[tool_policy]
+require_approval = []
+deny = []
+
+[platform.linux]
+seccomp_preset = "permissive"
+landlock = true
+
+[platform.macos]
+endpoint_security = false

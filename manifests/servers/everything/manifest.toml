@@ -1,0 +1,46 @@
+schema_version = "1.0"
+name = "everything"
+version = "0.6.2"
+description = "Reference MCP server exercising every protocol feature."
+homepage = "https://github.com/modelcontextprotocol/servers/tree/main/src/everything"
+license = "MIT"
+
+[command]
+program = "npx"
+args = ["-y", "@modelcontextprotocol/server-everything"]
+working_dir = "$HATCH_RUNTIME_DIR"
+
+[network]
+allow_https = []
+allow_dns = []
+allow_http = false
+
+[filesystem]
+read = []
+write = []
+tmpfs = ["/tmp"]
+
+[env]
+passthrough = []
+
+[exec]
+allow_subprocess = false
+allow_binaries = []
+
+[resources]
+memory_mb = 128
+cpu_percent = 15
+pids_max = 20
+nofile = 64
+tool_call_timeout_seconds = 30
+
+[tool_policy]
+require_approval = []
+deny = []
+
+[platform.linux]
+seccomp_preset = "strict"
+landlock = true
+
+[platform.macos]
+endpoint_security = false

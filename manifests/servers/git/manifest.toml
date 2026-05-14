@@ -1,0 +1,51 @@
+schema_version = "1.0"
+name = "git"
+version = "0.6.2"
+description = "Git MCP server: read repository state, commit, and inspect history."
+homepage = "https://github.com/modelcontextprotocol/servers/tree/main/src/git"
+license = "MIT"
+
+[command]
+program = "uvx"
+args = ["mcp-server-git", "--repository", "$PROJECT_ROOT"]
+working_dir = "$PROJECT_ROOT"
+
+[network]
+allow_https = []
+allow_dns = []
+allow_http = false
+
+[filesystem]
+read = ["$PROJECT_ROOT"]
+write = ["$PROJECT_ROOT"]
+tmpfs = ["/tmp"]
+
+[env]
+passthrough = ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"]
+
+[exec]
+allow_subprocess = true
+allow_binaries = ["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"]
+
+[resources]
+memory_mb = 256
+cpu_percent = 25
+pids_max = 32
+nofile = 256
+tool_call_timeout_seconds = 60
+
+[tool_policy]
+require_approval = ["git_push", "git_reset_hard"]
+deny = ["git_filter_branch"]
+
+[[tool_policy.rules]]
+tool = "git_commit"
+when = "args.amend == true"
+action = "require_approval"
+
+[platform.linux]
+seccomp_preset = "default"
+landlock = true
+
+[platform.macos]
+endpoint_security = false

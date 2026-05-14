@@ -1,0 +1,37 @@
+[package]
+name = "hatch-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "The long-running hatch daemon."
+
+[[bin]]
+name = "hatch-daemon"
+path = "src/main.rs"
+
+[dependencies]
+hatch-audit = { path = "../hatch-audit" }
+hatch-core = { path = "../hatch-core" }
+hatch-hostcfg = { path = "../hatch-hostcfg" }
+hatch-ipc = { path = "../hatch-ipc" }
+hatch-protocol = { path = "../hatch-protocol" }
+hatch-proxy = { path = "../hatch-proxy" }
+hatch-registry = { path = "../hatch-registry" }
+hatch-sandbox = { path = "../hatch-sandbox" }
+hatch-state = { path = "../hatch-state" }
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+dirs = { workspace = true }
+rustix = { workspace = true }
+prometheus = { workspace = true }
+regex = { workspace = true }

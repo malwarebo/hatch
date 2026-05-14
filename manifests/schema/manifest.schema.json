@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hatch.sh/schemas/manifest-1.0.json",
+  "title": "hatch manifest v1.0",
+  "type": "object",
+  "required": ["schema_version", "name", "version", "command", "resources"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([+-][A-Za-z0-9.-]+)?$"
+    },
+    "description": { "type": "string" },
+    "homepage": { "type": "string", "format": "uri" },
+    "license": { "type": "string" },
+    "command": {
+      "type": "object",
+      "required": ["program"],
+      "additionalProperties": false,
+      "properties": {
+        "program": { "type": "string", "minLength": 1 },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "working_dir": { "type": "string" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "npm_package": { "type": "string" },
+        "npm_version": { "type": "string" },
+        "npm_integrity": { "type": "string" },
+        "pip_package": { "type": "string" },
+        "pip_version": { "type": "string" },
+        "pip_hash": { "type": "string" },
+        "git_repo": { "type": "string" },
+        "git_ref": { "type": "string" },
+        "git_commit": { "type": "string" }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_https": { "type": "array", "items": { "type": "string" } },
+        "allow_dns": { "type": "array", "items": { "type": "string" } },
+        "allow_http": { "type": "boolean" },
+        "rate_limit_mbps": { "type": "integer", "minimum": 0 },
+        "max_bytes_per_connection_mb": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "filesystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "read": { "type": "array", "items": { "type": "string" } },
+        "write": { "type": "array", "items": { "type": "string" } },
+        "tmpfs": { "type": "array", "items": { "type": "string" } },
+        "deny": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "passthrough": { "type": "array", "items": { "type": "string" } },
+        "set": { "type": "object", "additionalProperties": { "type": "string" } },
+        "unset": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "exec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_subprocess": { "type": "boolean" },
+        "allow_binaries": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["memory_mb"],
+      "additionalProperties": false,
+      "properties": {
+        "memory_mb": { "type": "integer", "minimum": 64 },
+        "cpu_percent": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "pids_max": { "type": "integer", "minimum": 1 },
+        "nofile": { "type": "integer", "minimum": 1 },
+        "tool_call_timeout_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "tool_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require_approval": { "type": "array", "items": { "type": "string" } },
+        "deny": { "type": "array", "items": { "type": "string" } },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tool", "action"],
+            "additionalProperties": false,
+            "properties": {
+              "tool": { "type": "string" },
+              "when": { "type": "string" },
+              "action": { "enum": ["allow", "deny", "require_approval"] }
+            }
+          }
+        },
+        "response_filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "replacement"],
+            "additionalProperties": false,
+            "properties": {
+              "pattern": { "type": "string" },
+              "replacement": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "linux": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "seccomp_preset": { "enum": ["permissive", "default", "strict"] },
+            "landlock": { "type": "boolean" },
+            "extra_caps": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "macos": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "endpoint_security": { "type": "boolean" },
+            "extra_sbpl": { "type": "string" }
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "required": ["key_id", "algorithm", "sig", "signed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "key_id": { "type": "string" },
+        "algorithm": { "const": "ed25519" },
+        "sig": { "type": "string" },
+        "signed_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

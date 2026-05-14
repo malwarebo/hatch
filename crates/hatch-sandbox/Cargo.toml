@@ -1,0 +1,22 @@
+[package]
+name = "hatch-sandbox"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Sandbox trait, dispatch, and passthrough stub backend."
+
+[dependencies]
+hatch-core = { path = "../hatch-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["process", "rt", "io-util", "macros", "sync"] }
+uuid = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+hatch-sandbox-linux = { path = "../hatch-sandbox-linux" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+hatch-sandbox-macos = { path = "../hatch-sandbox-macos" }

@@ -1,0 +1,76 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/hatch-cli",
+    "crates/hatch-daemon",
+    "crates/hatch-shim",
+    "crates/hatch-core",
+    "crates/hatch-sandbox",
+    "crates/hatch-sandbox-linux",
+    "crates/hatch-sandbox-macos",
+    "crates/hatch-proxy",
+    "crates/hatch-protocol",
+    "crates/hatch-audit",
+    "crates/hatch-state",
+    "crates/hatch-registry",
+    "crates/hatch-hostcfg",
+    "crates/hatch-ipc",
+    "crates/hatch-tests",
+]
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+license = "Apache-2.0"
+repository = "https://github.com/malwarebo/hatch"
+authors = ["The hatch authors"]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures = "0.3"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+clap = { version = "4", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+rustix = { version = "0.38", features = ["fs", "process", "net", "system"] }
+
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+sha2 = "0.10"
+blake3 = "1"
+ed25519-dalek = "2"
+base64 = "0.22"
+
+rustls = "0.23"
+tokio-rustls = "0.26"
+hickory-resolver = "0.24"
+hickory-server = "0.24"
+hickory-proto = "0.24"
+
+thiserror = "1"
+anyhow = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+
+glob = "0.3"
+regex = "1"
+zstd = "0.13"
+dirs = "5"
+
+ratatui = "0.26"
+crossterm = "0.27"
+prometheus = "0.13"
+simd-json = "0.13"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
