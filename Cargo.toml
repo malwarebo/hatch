@@ -68,7 +68,7 @@ dirs = "5"
 ratatui = "0.26"
 crossterm = "0.27"
 prometheus = "0.13"
-simd-json = "0.13"
+simd-json = "0.17"
 
 [profile.release]
 lto = "thin"
