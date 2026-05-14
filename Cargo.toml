@@ -42,7 +42,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 rustix = { version = "0.38", features = ["fs", "process", "net", "system"] }
 
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 sha2 = "0.10"
 blake3 = "1"
