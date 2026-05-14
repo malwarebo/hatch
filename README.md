@@ -12,6 +12,45 @@ in signed manifests.
 
 The threat model is in [`docs/src/concepts/threat-model.md`](docs/src/concepts/threat-model.md).
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Host[MCP host]
+
+    subgraph trusted [trusted]
+        Shim[hatch-shim]
+        Daemon[hatch-daemon]
+        Proxy[SNI proxy + DNS allowlist]
+    end
+
+    subgraph sandbox [sandbox]
+        Srv[MCP server, untrusted]
+    end
+
+    Net[Allowlisted hosts only]
+
+    Host -->|stdio| Shim
+    Shim -->|policy query| Daemon
+    Daemon -->|decision| Shim
+    Daemon -->|spawn| Srv
+    Srv -->|stdio| Shim
+    Srv -->|HTTPS| Proxy
+    Srv -->|DNS| Proxy
+    Proxy -->|verified SNI| Net
+```
+
+Sandbox enforcement on Linux: user/mount/pid/net namespaces, cgroups v2, and
+iptables redirects inside a per-server netns. On macOS: `sandbox-exec`
+profile, PF anchor per sandbox UID, and a UID pool.
+
+Every tool call from the host passes through the shim, which queries the
+daemon's compiled policy (deny lists, glob patterns, CEL rules over arguments,
+response-redaction filters). Every network connection from the sandboxed
+server is forced through the SNI proxy and DNS resolver, both of which only
+permit destinations declared in the server's signed manifest. Everything is
+audited to JSONL with a hash chain.
+
 ## Build
 
 ```bash
