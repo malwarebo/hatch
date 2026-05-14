@@ -40,7 +40,7 @@ clap = { version = "4", features = ["derive", "env"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-rustix = { version = "0.38", features = ["fs", "process", "net", "system"] }
+rustix = { version = "1.1", features = ["fs", "process", "net", "system"] }
 
 rusqlite = { version = "0.31", features = ["bundled"] }
 
