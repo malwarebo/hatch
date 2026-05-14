@@ -127,7 +127,6 @@ fn lookup_syscall(name: &str) -> Option<i64> {
         "process_vm_writev" => Some(libc::SYS_process_vm_writev),
         _ => None,
     }
-    .map(|n| n as i64)
 }
 
 pub fn apply(program: &BpfProgram) -> Result<()> {

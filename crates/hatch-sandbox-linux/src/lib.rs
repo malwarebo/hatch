@@ -7,12 +7,16 @@ mod capabilities;
 #[cfg(target_os = "linux")]
 mod cgroups;
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 mod landlock_apply;
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 mod mount_ns;
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 mod netns;
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 mod seccomp;
 
 #[cfg(target_os = "linux")]
