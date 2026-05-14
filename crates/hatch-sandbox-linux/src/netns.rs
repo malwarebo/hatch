@@ -5,11 +5,6 @@ use anyhow::{anyhow, Result};
 pub struct NetnsHandle {
     pub name: String,
     pub host_veth: String,
-    pub sandbox_veth: String,
-    pub host_ip: String,
-    pub sandbox_ip: String,
-    pub proxy_port: u16,
-    pub dns_port: u16,
 }
 
 pub fn create_for(server_id: &str, proxy_port: u16, dns_port: u16) -> Result<NetnsHandle> {
@@ -80,10 +75,6 @@ pub fn create_for(server_id: &str, proxy_port: u16, dns_port: u16) -> Result<Net
 
     let proxy_port_str = proxy_port.to_string();
     let dns_port_str = dns_port.to_string();
-    let dnat_443 = format!("DNAT --to-destination {host_ip}:{proxy_port_str}");
-    let dnat_53 = format!("DNAT --to-destination {host_ip}:{dns_port_str}");
-    let _ = dnat_443;
-    let _ = dnat_53;
     let _ = run(
         "ip",
         &[
@@ -151,15 +142,7 @@ pub fn create_for(server_id: &str, proxy_port: u16, dns_port: u16) -> Result<Net
         ],
     );
 
-    Ok(NetnsHandle {
-        name,
-        host_veth,
-        sandbox_veth,
-        host_ip,
-        sandbox_ip,
-        proxy_port,
-        dns_port,
-    })
+    Ok(NetnsHandle { name, host_veth })
 }
 
 pub fn destroy(handle: &NetnsHandle) {

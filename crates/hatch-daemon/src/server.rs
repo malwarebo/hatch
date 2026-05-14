@@ -441,13 +441,7 @@ async fn evaluate_policy(
         tool_policy::Decision::RequireApproval { reason: _ } => {
             let (approval_id, mut rx) = state
                 .broker
-                .request(
-                    server_id.to_string(),
-                    srv.manifest_name.clone(),
-                    tool.to_string(),
-                    args_hash,
-                    args_summary.clone(),
-                )
+                .request(srv.manifest_name.clone(), tool.to_string(), args_hash)
                 .await;
 
             let _ = state.audit.write(

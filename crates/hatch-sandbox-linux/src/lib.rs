@@ -7,24 +7,12 @@ mod capabilities;
 #[cfg(target_os = "linux")]
 mod cgroups;
 #[cfg(target_os = "linux")]
-#[allow(dead_code)]
-mod landlock_apply;
-#[cfg(target_os = "linux")]
-#[allow(dead_code)]
-mod mount_ns;
-#[cfg(target_os = "linux")]
-#[allow(dead_code)]
 mod netns;
-#[cfg(target_os = "linux")]
-#[allow(dead_code)]
-mod seccomp;
 
 #[cfg(target_os = "linux")]
 pub use backend::{LinuxBackend, LinuxBackendError};
 #[cfg(target_os = "linux")]
 pub use capabilities::detect_capabilities;
-#[cfg(target_os = "linux")]
-pub use seccomp::SeccompProfile;
 
 #[cfg(not(target_os = "linux"))]
 mod stub_for_other_platforms;

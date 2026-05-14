@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 use std::process::Stdio;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use hatch_core::CompiledPolicy;
 use thiserror::Error;
 use tokio::process::{Child, Command};
 use uuid::Uuid;
 
-use crate::{cgroups, netns, seccomp, LinuxCapabilities};
+use crate::{cgroups, netns, LinuxCapabilities};
 
 #[derive(Debug, Error)]
 pub enum LinuxBackendError {
@@ -64,15 +64,6 @@ impl LinuxBackend {
         let netns_handle =
             netns::create_for(&id, self.proxy_port, self.dns_port).context("netns")?;
 
-        let seccomp_profile = seccomp::compile(
-            policy.manifest.platform.linux.seccomp_preset,
-            policy.manifest.exec.allow_subprocess,
-        )?;
-        let _ = seccomp_profile;
-
-        let landlock_enabled =
-            self.capabilities.landlock.is_some() && policy.manifest.platform.linux.landlock;
-
         let m = &policy.manifest;
         let mut cmd = Command::new("ip");
         cmd.arg("netns")
@@ -102,11 +93,6 @@ impl LinuxBackend {
         }
         cmd.env("HATCH_SERVER_ID", &id);
         cmd.env("HATCH_RUNTIME_DIR", &server_runtime);
-        cmd.env(
-            "HATCH_SECCOMP_PRESET",
-            format!("{:?}", m.platform.linux.seccomp_preset),
-        );
-        cmd.env("HATCH_LANDLOCK", landlock_enabled.to_string());
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())

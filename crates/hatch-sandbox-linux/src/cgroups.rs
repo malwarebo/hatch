@@ -11,13 +11,6 @@ pub struct CgroupHandle {
 }
 
 impl CgroupHandle {
-    pub fn join_self(&self) -> Result<()> {
-        let procs = self.path.join("cgroup.procs");
-        let pid = std::process::id().to_string();
-        fs::write(&procs, pid).with_context(|| format!("write {procs:?}"))?;
-        Ok(())
-    }
-
     pub fn cleanup(&self) {
         let _ = fs::remove_dir(&self.path);
     }

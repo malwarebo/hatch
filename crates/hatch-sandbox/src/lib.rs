@@ -78,10 +78,6 @@ pub struct BackendOptions {
     pub allow_real_backend: bool,
 }
 
-pub fn default_backend() -> Box<dyn Sandbox> {
-    Box::new(stub::StubBackend::new())
-}
-
 pub fn select_backend(opts: BackendOptions) -> Box<dyn Sandbox> {
     if !opts.allow_real_backend {
         return Box::new(stub::StubBackend::new());

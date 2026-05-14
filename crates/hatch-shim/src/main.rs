@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use hatch_ipc::{ClientRequest, Codec, DaemonPaths, DaemonResponse, PolicyDecision};
-use hatch_protocol::jsonrpc::{parse_message, Id, ParsedMessage, Response, RpcError};
+use hatch_ipc::{ClientRequest, Codec, DaemonPaths, DaemonResponse};
+use hatch_protocol::jsonrpc::parse_message;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 use tokio::sync::Mutex;
@@ -218,10 +218,6 @@ async fn mediate_message(
         None => return Err(false),
     };
     let args = parsed.tool_call_args();
-    let _req_id = match &parsed {
-        ParsedMessage::Request(r) => r.id.clone(),
-        _ => None,
-    };
 
     let mut w = writer.lock().await;
     let policy_req = ClientRequest::PolicyQuery {
@@ -278,26 +274,4 @@ fn clamp_exit(code: i32) -> u8 {
     } else {
         code as u8
     }
-}
-
-#[allow(dead_code)]
-fn synth_deny_response(id: Id, reason: &str) -> Vec<u8> {
-    let r = Response {
-        jsonrpc: "2.0".into(),
-        id,
-        result: None,
-        error: Some(RpcError {
-            code: -32603,
-            message: format!("hatch denied: {reason}"),
-            data: None,
-        }),
-    };
-    let mut s = serde_json::to_vec(&r).unwrap_or_default();
-    s.push(b'\n');
-    s
-}
-
-#[allow(dead_code)]
-fn unwrap_decision(decision: PolicyDecision) -> bool {
-    matches!(decision, PolicyDecision::Allow)
 }

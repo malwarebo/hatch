@@ -13,15 +13,10 @@ pub enum Decision {
     Timeout,
 }
 
-#[allow(dead_code)]
 pub struct Pending {
-    pub id: String,
-    pub server_id: String,
     pub server_name: String,
     pub tool: String,
     pub args_hash: String,
-    pub args_summary: serde_json::Value,
-    pub requested_at: Instant,
     pub sender: oneshot::Sender<Decision>,
 }
 
@@ -60,22 +55,16 @@ impl ApprovalBroker {
 
     pub async fn request(
         &self,
-        server_id: String,
         server_name: String,
         tool: String,
         args_hash: String,
-        args_summary: serde_json::Value,
     ) -> (String, oneshot::Receiver<Decision>) {
         let id = Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         let pending = Pending {
-            id: id.clone(),
-            server_id,
             server_name,
             tool,
             args_hash,
-            args_summary,
-            requested_at: Instant::now(),
             sender: tx,
         };
         self.inner.lock().await.insert(id.clone(), pending);
@@ -129,11 +118,6 @@ impl ApprovalBroker {
         if let Some(pending) = self.inner.lock().await.remove(id) {
             let _ = pending.sender.send(Decision::Timeout);
         }
-    }
-
-    #[allow(dead_code)]
-    pub async fn pending_count(&self) -> usize {
-        self.inner.lock().await.len()
     }
 }
 
