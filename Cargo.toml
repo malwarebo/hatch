@@ -34,15 +34,15 @@ futures = "0.3"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1"
 
 clap = { version = "4", features = ["derive", "env"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-rustix = { version = "0.38", features = ["fs", "process", "net", "system"] }
+rustix = { version = "1", features = ["fs", "process", "net", "system"] }
 
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 sha2 = "0.10"
 blake3 = "1"
@@ -55,7 +55,7 @@ hickory-resolver = "0.24"
 hickory-server = "0.24"
 hickory-proto = "0.24"
 
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
@@ -63,12 +63,12 @@ time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"
 glob = "0.3"
 regex = "1"
 zstd = "0.13"
-dirs = "5"
+dirs = "6"
 
-ratatui = "0.26"
-crossterm = "0.27"
+ratatui = "0.30"
+crossterm = "0.29"
 prometheus = "0.13"
-simd-json = "0.13"
+simd-json = "0.17"
 
 [profile.release]
 lto = "thin"

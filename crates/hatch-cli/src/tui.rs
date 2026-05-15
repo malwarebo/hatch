@@ -109,7 +109,7 @@ async fn main_loop<B: ratatui::backend::Backend>(
     loop {
         terminal
             .draw(|f| draw(f, state, search_mode))
-            .context("draw")?;
+            .map_err(|e| anyhow::anyhow!("draw: {e:?}"))?;
 
         tokio::select! {
             _ = tick.tick() => {
@@ -157,7 +157,7 @@ async fn main_loop<B: ratatui::backend::Backend>(
 }
 
 fn draw(f: &mut ratatui::Frame, state: &TuiState, search_mode: bool) {
-    let area = f.size();
+    let area = f.area();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

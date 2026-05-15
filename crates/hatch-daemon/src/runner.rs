@@ -237,7 +237,7 @@ fn nix_kill(pid: u32) -> Result<()> {
     }
     use rustix::process::{kill_process, Pid, Signal};
     if let Some(rpid) = Pid::from_raw(pid as i32) {
-        let _ = kill_process(rpid, Signal::Term);
+        let _ = kill_process(rpid, Signal::TERM);
     }
     Ok(())
 }

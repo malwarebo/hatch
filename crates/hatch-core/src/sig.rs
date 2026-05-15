@@ -133,13 +133,12 @@ mod tests {
     use super::*;
     use crate::manifest::{Manifest, Signature};
     use ed25519_dalek::{Signer, SigningKey};
-    use rand_core::RngCore;
 
     const MIN: &str = include_str!("../tests/fixtures/minimal.toml");
 
     fn random_signing_key() -> SigningKey {
         let mut secret = [0u8; 32];
-        rand_core::OsRng.fill_bytes(&mut secret);
+        getrandom::fill(&mut secret).expect("entropy");
         SigningKey::from_bytes(&secret)
     }
 
