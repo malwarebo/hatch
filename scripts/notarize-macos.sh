@@ -42,7 +42,9 @@ done
 
 ROOT="$OUT/pkg-root"
 mkdir -p "$ROOT/usr/local/bin"
+mkdir -p "$ROOT/Library/LaunchAgents"
 cp "$OUT/hatch" "$OUT/hatch-daemon" "$OUT/hatch-shim" "$ROOT/usr/local/bin/"
+cp packaging/macos/sh.hatch.daemon.plist "$ROOT/Library/LaunchAgents/"
 
 UNSIGNED_PKG="$OUT/hatch-${VERSION}-unsigned.pkg"
 pkgbuild --root "$ROOT" \

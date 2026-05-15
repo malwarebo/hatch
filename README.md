@@ -51,6 +51,59 @@ server is forced through the SNI proxy and DNS resolver, both of which only
 permit destinations declared in the server's signed manifest. Everything is
 audited to JSONL with a hash chain.
 
+## Install
+
+Once releases are published, the following channels work:
+
+- **Homebrew (macOS or Linux)**
+  ```bash
+  brew tap malwarebo/hatch
+  brew install hatch
+  ```
+- **Debian / Ubuntu**
+  ```bash
+  curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.0_amd64.deb
+  sudo apt install ./hatch_0.1.0_amd64.deb
+  ```
+- **Fedora / RHEL**
+  ```bash
+  sudo dnf install https://github.com/malwarebo/hatch/releases/latest/download/hatch-0.1.0-1.x86_64.rpm
+  ```
+- **Arch (AUR)**
+  ```bash
+  yay -S hatch-bin
+  ```
+- **macOS signed `.pkg`**
+  Download from the [latest release](https://github.com/malwarebo/hatch/releases/latest)
+  and double-click. Notarized; the launchd agent installs at
+  `/Library/LaunchAgents/sh.hatch.daemon.plist`.
+- **Nix**
+  ```bash
+  nix profile install github:malwarebo/hatch
+  ```
+
+Building packages locally:
+
+```bash
+cargo install cargo-deb cargo-generate-rpm
+cargo build --release
+cargo deb -p hatch-cli                  # -> target/debian/hatch_*.deb
+cargo generate-rpm -p hatch-cli         # -> target/generate-rpm/hatch-*.rpm
+```
+
+For the signed `.pkg`, run `scripts/notarize-macos.sh <version>` with
+`APPLE_DEVELOPER_ID_APPLICATION`, `APPLE_DEVELOPER_ID_INSTALLER`, and
+`APPLE_NOTARY_PROFILE` set in your environment.
+
+Linux systemd user unit lives at
+[`packaging/systemd/hatch-daemon.service`](packaging/systemd/hatch-daemon.service);
+after install:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now hatch-daemon
+```
+
 ## Build
 
 ```bash

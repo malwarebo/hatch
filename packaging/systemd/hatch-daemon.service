@@ -1,0 +1,17 @@
+[Unit]
+Description=hatch daemon
+Documentation=https://github.com/malwarebo/hatch
+After=default.target
+
+[Service]
+ExecStart=/usr/bin/hatch-daemon --systemd
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%t/hatch %h/.local/state/hatch %h/.cache/hatch
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
