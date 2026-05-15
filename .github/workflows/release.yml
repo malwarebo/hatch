@@ -33,20 +33,46 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+      - name: cross-compile setup (aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
       - name: build
         run: |
           cargo build --release --locked --target "$TARGET"
-          mkdir -p "dist/$TARGET"
-          cp "target/$TARGET/release/hatch"        "dist/$TARGET/"
-          cp "target/$TARGET/release/hatch-daemon" "dist/$TARGET/"
-          cp "target/$TARGET/release/hatch-shim"   "dist/$TARGET/"
-          cp LICENSE README.md "dist/$TARGET/"
-          tar -czf "dist/hatch-$TARGET.tar.gz" -C "dist/$TARGET" .
+          mkdir -p "dist"
+          mkdir -p "dist/staging-$TARGET"
+          cp "target/$TARGET/release/hatch"        "dist/staging-$TARGET/"
+          cp "target/$TARGET/release/hatch-daemon" "dist/staging-$TARGET/"
+          cp "target/$TARGET/release/hatch-shim"   "dist/staging-$TARGET/"
+          cp LICENSE README.md "dist/staging-$TARGET/"
+          tar -czf "dist/hatch-$TARGET.tar.gz" -C "dist/staging-$TARGET" .
           (cd dist && shasum -a 256 "hatch-$TARGET.tar.gz" > "hatch-$TARGET.tar.gz.sha256")
+      - name: package deb
+        run: |
+          cargo deb --target "$TARGET" -p hatch-cli --no-build --no-strip
+          cp "target/$TARGET/debian"/*.deb dist/
+          (cd dist && for f in *.deb; do shasum -a 256 "$f" > "$f.sha256"; done)
+      - name: package rpm
+        run: |
+          (cd crates/hatch-cli && cargo generate-rpm --target "$TARGET")
+          cp "target/$TARGET/generate-rpm"/*.rpm dist/
+          (cd dist && for f in *.rpm; do shasum -a 256 "$f" > "$f.sha256"; done)
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.target }}
-          path: dist/hatch-*.tar.gz*
+          path: |
+            dist/hatch-*.tar.gz
+            dist/hatch-*.tar.gz.sha256
+            dist/*.deb
+            dist/*.deb.sha256
+            dist/*.rpm
+            dist/*.rpm.sha256
 
   build-macos:
     runs-on: macos-14

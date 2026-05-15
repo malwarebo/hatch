@@ -87,9 +87,12 @@ Building packages locally:
 ```bash
 cargo install cargo-deb cargo-generate-rpm
 cargo build --release
-cargo deb -p hatch-cli                  # -> target/debian/hatch_*.deb
-cargo generate-rpm -p hatch-cli         # -> target/generate-rpm/hatch-*.rpm
+cargo deb -p hatch-cli --no-build --no-strip   # -> target/debian/hatch_*.deb
+(cd crates/hatch-cli && cargo generate-rpm)    # -> target/generate-rpm/hatch-*.rpm
 ```
+
+`cargo generate-rpm` doesn't resolve nested workspace members via `-p`, so
+run it from inside `crates/hatch-cli/`.
 
 For the signed `.pkg`, run `scripts/notarize-macos.sh <version>` with
 `APPLE_DEVELOPER_ID_APPLICATION`, `APPLE_DEVELOPER_ID_INSTALLER`, and
