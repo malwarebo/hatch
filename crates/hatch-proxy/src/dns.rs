@@ -1,10 +1,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
+use hickory_proto::op::{Message, MessageType, OpCode, Query, ResponseCode};
 use hickory_proto::rr::{Name, RecordType};
-use hickory_resolver::config::{ResolverConfig, ResolverOpts};
-use hickory_resolver::TokioAsyncResolver;
+use hickory_resolver::TokioResolver;
 use tokio::net::UdpSocket;
 use tracing::{debug, info, warn};
 
@@ -15,14 +14,16 @@ const MAX_TTL: u32 = 300;
 const MAX_DNS_PAYLOAD: usize = 4096;
 
 pub struct DnsResolver {
-    upstream: Arc<TokioAsyncResolver>,
+    upstream: Arc<TokioResolver>,
     registry: ProxyRegistry,
 }
 
 impl DnsResolver {
     pub fn new(registry: ProxyRegistry) -> Self {
-        let upstream =
-            TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
+        let upstream = TokioResolver::builder_tokio()
+            .expect("build TokioResolver")
+            .build()
+            .expect("build TokioResolver");
         Self {
             upstream: Arc::new(upstream),
             registry,
@@ -37,8 +38,8 @@ impl DnsResolver {
                 return error_response(query_bytes, ResponseCode::FormErr);
             }
         };
-        let id = request.id();
-        let query = match request.queries().first().cloned() {
+        let id = request.metadata.id;
+        let query = match request.queries.first().cloned() {
             Some(q) => q,
             None => return error_response(query_bytes, ResponseCode::FormErr),
         };
@@ -71,34 +72,27 @@ impl DnsResolver {
             }
         };
 
-        let mut response = Message::new();
-        response.set_id(id);
-        response.set_message_type(MessageType::Response);
-        response.set_op_code(OpCode::Query);
-        response.set_recursion_available(true);
-        response.set_recursion_desired(request.recursion_desired());
-        response.set_response_code(ResponseCode::NoError);
+        let mut response = Message::new(id, MessageType::Response, OpCode::Query);
+        response.metadata.recursion_available = true;
+        response.metadata.recursion_desired = request.metadata.recursion_desired;
+        response.metadata.response_code = ResponseCode::NoError;
         response.add_query(query.clone());
-        for rec in lookup.record_iter() {
+        for rec in lookup.answers() {
             let mut owned = rec.clone();
-            if owned.ttl() > MAX_TTL {
-                owned.set_ttl(MAX_TTL);
+            if owned.ttl > MAX_TTL {
+                owned.ttl = MAX_TTL;
             }
             response.add_answer(owned);
         }
-        let _ = request;
         response
             .to_vec()
             .unwrap_or_else(|_| build_empty(id, &query, ResponseCode::ServFail))
     }
 }
 
-fn build_empty(id: u16, query: &hickory_proto::op::Query, code: ResponseCode) -> Vec<u8> {
-    let mut msg = Message::new();
-    msg.set_id(id);
-    msg.set_message_type(MessageType::Response);
-    msg.set_op_code(OpCode::Query);
-    msg.set_response_code(code);
+fn build_empty(id: u16, query: &Query, code: ResponseCode) -> Vec<u8> {
+    let mut msg = Message::new(id, MessageType::Response, OpCode::Query);
+    msg.metadata.response_code = code;
     msg.add_query(query.clone());
     msg.to_vec().unwrap_or_default()
 }
@@ -109,10 +103,8 @@ fn error_response(query: &[u8], code: ResponseCode) -> Vec<u8> {
     } else {
         0
     };
-    let mut msg = Message::new();
-    msg.set_id(id);
-    msg.set_message_type(MessageType::Response);
-    msg.set_response_code(code);
+    let mut msg = Message::new(id, MessageType::Response, OpCode::Query);
+    msg.metadata.response_code = code;
     msg.to_vec().unwrap_or_default()
 }
 
@@ -173,20 +165,14 @@ pub async fn start_dns_server(
 mod tests {
     use super::*;
     use hatch_core::compile::NetworkAllowSet;
-    use hickory_proto::op::Query;
     use hickory_proto::rr::DNSClass;
 
     fn build_query(host: &str, qtype: RecordType) -> Vec<u8> {
-        let mut msg = Message::new();
-        msg.set_id(0x1234);
-        msg.set_op_code(OpCode::Query);
-        msg.set_message_type(MessageType::Query);
-        msg.set_recursion_desired(true);
+        let mut msg = Message::new(0x1234, MessageType::Query, OpCode::Query);
+        msg.metadata.recursion_desired = true;
         let name = Name::from_utf8(host).unwrap();
-        let mut q = Query::new();
-        q.set_name(name);
+        let mut q = Query::query(name, qtype);
         q.set_query_class(DNSClass::IN);
-        q.set_query_type(qtype);
         msg.add_query(q);
         msg.to_vec().unwrap()
     }
@@ -198,7 +184,7 @@ mod tests {
         let q = build_query("api.example.com", RecordType::A);
         let r = resolver.handle(&q).await;
         let msg = Message::from_vec(&r).unwrap();
-        assert_eq!(msg.response_code(), ResponseCode::Refused);
+        assert_eq!(msg.metadata.response_code, ResponseCode::Refused);
     }
 
     #[tokio::test]
@@ -220,7 +206,7 @@ mod tests {
         let q = build_query("api.other.com", RecordType::A);
         let r = resolver.handle(&q).await;
         let msg = Message::from_vec(&r).unwrap();
-        assert_eq!(msg.response_code(), ResponseCode::NXDomain);
+        assert_eq!(msg.metadata.response_code, ResponseCode::NXDomain);
     }
 
     #[tokio::test]
@@ -242,6 +228,6 @@ mod tests {
         let q = build_query("api.allowed.com", RecordType::TXT);
         let r = resolver.handle(&q).await;
         let msg = Message::from_vec(&r).unwrap();
-        assert_eq!(msg.response_code(), ResponseCode::Refused);
+        assert_eq!(msg.metadata.response_code, ResponseCode::Refused);
     }
 }
