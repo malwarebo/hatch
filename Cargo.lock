@@ -1010,7 +1010,7 @@ dependencies = [
  "blake3",
  "dirs",
  "ed25519-dalek",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "glob",
  "regex",
  "serde",

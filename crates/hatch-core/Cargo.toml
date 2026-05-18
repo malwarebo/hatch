@@ -22,4 +22,4 @@ time = { workspace = true }
 dirs = { workspace = true }
 
 [dev-dependencies]
-getrandom = "0.3"
+getrandom = "0.4"
