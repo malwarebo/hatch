@@ -53,34 +53,23 @@ audited to JSONL with a hash chain.
 
 ## Install
 
-Once releases are published, the following channels work:
+Tagging `vX.Y.Z` triggers `.github/workflows/release.yml`, which builds the
+following artifacts and attaches them to the [GitHub Release](https://github.com/malwarebo/hatch/releases):
 
-- **Homebrew (macOS or Linux)**
-  ```bash
-  brew tap malwarebo/hatch
-  brew install hatch
-  ```
 - **Debian / Ubuntu**
   ```bash
-  curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.0_amd64.deb
-  sudo apt install ./hatch_0.1.0_amd64.deb
+  curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.0-1_amd64.deb
+  sudo apt install ./hatch_0.1.0-1_amd64.deb
   ```
 - **Fedora / RHEL**
   ```bash
   sudo dnf install https://github.com/malwarebo/hatch/releases/latest/download/hatch-0.1.0-1.x86_64.rpm
   ```
-- **Arch (AUR)**
-  ```bash
-  yay -S hatch-bin
-  ```
-- **macOS signed `.pkg`**
+- **macOS `.pkg`**
   Download from the [latest release](https://github.com/malwarebo/hatch/releases/latest)
-  and double-click. Notarized; the launchd agent installs at
+  and double-click. When the workflow is supplied with Apple Developer credentials,
+  the pkg is signed and notarized and installs a launchd agent at
   `/Library/LaunchAgents/sh.hatch.daemon.plist`.
-- **Nix**
-  ```bash
-  nix profile install github:malwarebo/hatch
-  ```
 
 Building packages locally:
 
