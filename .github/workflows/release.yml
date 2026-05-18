@@ -63,7 +63,7 @@ jobs:
           (cd crates/hatch-cli && cargo generate-rpm --target "$TARGET")
           cp "target/$TARGET/generate-rpm"/*.rpm dist/
           (cd dist && for f in *.rpm; do shasum -a 256 "$f" > "$f.sha256"; done)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.target }}
           path: |
@@ -114,7 +114,7 @@ jobs:
             tar -czf "dist/hatch-$VERSION-universal-apple-darwin.tar.gz" \
               -C dist hatch hatch-daemon hatch-shim
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: |
