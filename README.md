@@ -10,18 +10,26 @@ Capability-based isolation for AI tool servers.
 enforcing per-server network, filesystem, and protocol-level policies declared
 in signed manifests.
 
+It runs as a user-level background daemon (`hatch-daemon`, managed by systemd
+on Linux or `launchd` on macOS); per-server `hatch-shim` processes bridge each
+MCP host (Claude Desktop, Cursor, Claude Code, Zed, Continue, Windsurf) to the
+sandboxed servers the daemon spawns and polices.
+
 The threat model is in [`docs/src/concepts/threat-model.md`](docs/src/concepts/threat-model.md).
 
 ## Architecture
 
 ```mermaid
+%%{init: {"flowchart": {"defaultRenderer": "elk"}}}%%
 flowchart LR
     Host[MCP host]
 
     subgraph trusted [trusted]
+        direction TB
         Shim[hatch-shim]
         Daemon[hatch-daemon]
-        Proxy[SNI proxy + DNS allowlist]
+        Enforce["Per-process enforcement<br/>Linux: hatch-linux-helper<br/>Landlock + seccomp<br/>macOS: sandbox-exec"]
+        Proxy["SNI proxy<br/>+ DNS allowlist"]
     end
 
     subgraph sandbox [sandbox]
@@ -33,7 +41,8 @@ flowchart LR
     Host -->|stdio| Shim
     Shim -->|policy query| Daemon
     Daemon -->|decision| Shim
-    Daemon -->|spawn| Srv
+    Daemon -->|spawn| Enforce
+    Enforce -->|exec| Srv
     Srv -->|stdio| Shim
     Srv -->|HTTPS| Proxy
     Srv -->|DNS| Proxy
