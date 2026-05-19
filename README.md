@@ -59,14 +59,18 @@ Tagging `vX.Y.Z` triggers `.github/workflows/release.yml`, which builds the
 following artifacts and attaches them to the [GitHub Release](https://github.com/malwarebo/hatch/releases):
 
 - **Debian / Ubuntu**
+
   ```bash
   curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.0-1_amd64.deb
   sudo apt install ./hatch_0.1.0-1_amd64.deb
   ```
+
 - **Fedora / RHEL**
+
   ```bash
   sudo dnf install https://github.com/malwarebo/hatch/releases/latest/download/hatch-0.1.0-1.x86_64.rpm
   ```
+
 - **macOS `.pkg`**
   Download from the [latest release](https://github.com/malwarebo/hatch/releases/latest)
   and double-click. When the workflow is supplied with Apple Developer credentials,
