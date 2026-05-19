@@ -81,7 +81,7 @@ impl LinuxBackend {
                 read_paths: policy.resolved_paths_read.clone(),
                 write_paths: policy.resolved_paths_write.clone(),
                 seccomp_preset: map_seccomp_preset(policy.manifest.platform.linux.seccomp_preset),
-                allow_subprocess: policy.manifest.capabilities.processes.subprocesses,
+                allow_subprocess: policy.manifest.exec.allow_subprocess,
                 apply_landlock: policy.manifest.platform.linux.landlock,
                 program: PathBuf::from(&m.command.program),
                 args: m.command.args.iter().map(Into::into).collect(),
