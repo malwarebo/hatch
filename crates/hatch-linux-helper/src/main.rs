@@ -177,7 +177,7 @@ mod imp {
                 "fspick",
             ]);
             if !allow_subprocess {
-                denied.extend_from_slice(&["execve", "execveat", "vfork"]);
+                denied.extend_from_slice(&["execve", "execveat"]);
             }
         }
 
@@ -237,7 +237,6 @@ mod imp {
             "fspick" => Some(libc::SYS_fspick),
             "execve" => Some(libc::SYS_execve),
             "execveat" => Some(libc::SYS_execveat),
-            "vfork" => Some(libc::SYS_vfork),
             _ => None,
         }
     }

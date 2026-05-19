@@ -65,10 +65,10 @@ license = "Apache-2.0"
 summary = "Capability-based isolation for AI tool servers"
 requires = { iproute = "*", iptables = "*" }
 assets = [
-    { source = "target/release/hatch",              dest = "/usr/bin/hatch",              mode = "755" },
-    { source = "target/release/hatch-daemon",       dest = "/usr/bin/hatch-daemon",       mode = "755" },
-    { source = "target/release/hatch-shim",         dest = "/usr/bin/hatch-shim",         mode = "755" },
-    { source = "target/release/hatch-linux-helper", dest = "/usr/bin/hatch-linux-helper", mode = "755" },
+    { source = "../../target/release/hatch",              dest = "/usr/bin/hatch",              mode = "755" },
+    { source = "../../target/release/hatch-daemon",       dest = "/usr/bin/hatch-daemon",       mode = "755" },
+    { source = "../../target/release/hatch-shim",         dest = "/usr/bin/hatch-shim",         mode = "755" },
+    { source = "../../target/release/hatch-linux-helper", dest = "/usr/bin/hatch-linux-helper", mode = "755" },
     { source = "../../packaging/systemd/hatch-daemon.service", dest = "/usr/lib/systemd/user/hatch-daemon.service", mode = "644", config = false },
     { source = "../../LICENSE",   dest = "/usr/share/doc/hatch/LICENSE",   mode = "644", doc = true },
     { source = "../../README.md", dest = "/usr/share/doc/hatch/README.md", mode = "644", doc = true },
