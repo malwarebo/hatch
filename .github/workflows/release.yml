@@ -62,7 +62,7 @@ jobs:
           (cd dist && for f in *.deb; do shasum -a 256 "$f" > "$f.sha256"; done)
       - name: package rpm
         run: |
-          (cd crates/hatch-cli && cargo generate-rpm --target "$TARGET")
+          (cd crates/hatch-cli && cargo generate-rpm --target-dir ../../target --target "$TARGET")
           cp "target/$TARGET/generate-rpm"/*.rpm dist/
           (cd dist && for f in *.rpm; do shasum -a 256 "$f" > "$f.sha256"; done)
       - uses: actions/upload-artifact@v4
