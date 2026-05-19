@@ -3,11 +3,21 @@ use std::process::Stdio;
 
 use anyhow::{Context, Result};
 use hatch_core::CompiledPolicy;
+use hatch_linux_helper::{HelperPolicy, SeccompPreset};
 use thiserror::Error;
 use tokio::process::{Child, Command};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{cgroups, netns, LinuxCapabilities};
+
+fn map_seccomp_preset(p: hatch_core::SeccompPreset) -> SeccompPreset {
+    match p {
+        hatch_core::SeccompPreset::Permissive => SeccompPreset::Permissive,
+        hatch_core::SeccompPreset::Default => SeccompPreset::Default,
+        hatch_core::SeccompPreset::Strict => SeccompPreset::Strict,
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum LinuxBackendError {
@@ -65,6 +75,56 @@ impl LinuxBackend {
             netns::create_for(&id, self.proxy_port, self.dns_port).context("netns")?;
 
         let m = &policy.manifest;
+        let helper_target = resolve_helper_path().and_then(|bin| {
+            let policy_path = server_runtime.join("policy.json");
+            let p = HelperPolicy {
+                read_paths: policy.resolved_paths_read.clone(),
+                write_paths: policy.resolved_paths_write.clone(),
+                seccomp_preset: map_seccomp_preset(policy.manifest.platform.linux.seccomp_preset),
+                allow_subprocess: policy.manifest.capabilities.processes.subprocesses,
+                apply_landlock: policy.manifest.platform.linux.landlock,
+                program: PathBuf::from(&m.command.program),
+                args: m.command.args.iter().map(Into::into).collect(),
+            };
+            match serde_json::to_string(&p) {
+                Ok(serialised) => match std::fs::write(&policy_path, serialised) {
+                    Ok(()) => {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt as _;
+                            let _ = std::fs::set_permissions(
+                                &policy_path,
+                                std::fs::Permissions::from_mode(0o600),
+                            );
+                        }
+                        Some((bin, policy_path))
+                    }
+                    Err(e) => {
+                        warn!(
+                            target: "hatch::sandbox::linux",
+                            "write helper policy {}: {e}; falling back to direct exec",
+                            policy_path.display()
+                        );
+                        None
+                    }
+                },
+                Err(e) => {
+                    warn!(
+                        target: "hatch::sandbox::linux",
+                        "serialize helper policy: {e}; falling back to direct exec"
+                    );
+                    None
+                }
+            }
+        });
+
+        if helper_target.is_none() {
+            warn!(
+                target: "hatch::sandbox::linux",
+                "hatch-linux-helper not used; Landlock/seccomp will NOT be applied"
+            );
+        }
+
         let mut cmd = Command::new("ip");
         cmd.arg("netns")
             .arg("exec")
@@ -75,9 +135,15 @@ impl LinuxBackend {
             .arg("--pid")
             .arg("--fork")
             .arg("--map-root-user")
-            .arg("--")
-            .arg(&m.command.program)
-            .args(&m.command.args);
+            .arg("--");
+        match &helper_target {
+            Some((bin, path)) => {
+                cmd.arg(bin).arg(path);
+            }
+            None => {
+                cmd.arg(&m.command.program).args(&m.command.args);
+            }
+        }
 
         cmd.env_clear();
         for k in &m.env.passthrough {
@@ -105,6 +171,11 @@ impl LinuxBackend {
             LinuxBackendError::Spawn(e)
         })?;
         let pid = child.id().unwrap_or(0);
+        if pid != 0 {
+            if let Err(e) = cgroups::attach_pid(&cgroup.path, pid) {
+                warn!(target: "hatch::sandbox::linux", "attach pid {pid} to cgroup: {e}");
+            }
+        }
         let stdin = child.stdin.take();
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
@@ -120,4 +191,28 @@ impl LinuxBackend {
             cgroup_path: cgroup.path,
         })
     }
+}
+
+fn resolve_helper_path() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("HATCH_LINUX_HELPER") {
+        let pb = PathBuf::from(p);
+        if pb.exists() {
+            return Some(pb);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let sibling = dir.join("hatch-linux-helper");
+            if sibling.exists() {
+                return Some(sibling);
+            }
+        }
+    }
+    for prefix in ["/usr/bin", "/usr/local/bin"] {
+        let candidate = std::path::Path::new(prefix).join("hatch-linux-helper");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
 }

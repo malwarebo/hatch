@@ -9,7 +9,8 @@ description = "Linux sandbox backend: namespaces, cgroups, netns + iptables."
 
 [dependencies]
 hatch-core = { path = "../hatch-core" }
-serde = { workspace = true }
+hatch-linux-helper = { path = "../hatch-linux-helper" }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["process", "rt", "io-util", "macros"] }
@@ -18,3 +19,4 @@ anyhow = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = "0.4"
+libc = "0.2"

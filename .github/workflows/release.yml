@@ -47,9 +47,10 @@ jobs:
           cargo build --release --locked --target "$TARGET"
           mkdir -p "dist"
           mkdir -p "dist/staging-$TARGET"
-          cp "target/$TARGET/release/hatch"        "dist/staging-$TARGET/"
-          cp "target/$TARGET/release/hatch-daemon" "dist/staging-$TARGET/"
-          cp "target/$TARGET/release/hatch-shim"   "dist/staging-$TARGET/"
+          cp "target/$TARGET/release/hatch"              "dist/staging-$TARGET/"
+          cp "target/$TARGET/release/hatch-daemon"       "dist/staging-$TARGET/"
+          cp "target/$TARGET/release/hatch-shim"         "dist/staging-$TARGET/"
+          cp "target/$TARGET/release/hatch-linux-helper" "dist/staging-$TARGET/"
           cp LICENSE README.md "dist/staging-$TARGET/"
           tar -czf "dist/hatch-$TARGET.tar.gz" -C "dist/staging-$TARGET" .
           (cd dist && shasum -a 256 "hatch-$TARGET.tar.gz" > "hatch-$TARGET.tar.gz.sha256")

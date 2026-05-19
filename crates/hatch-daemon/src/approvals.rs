@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use hatch_ipc::RememberMode;
 use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
+
+pub const REMEMBER_MANIFEST_VERSION_SECONDS: i64 = 60 * 60 * 24 * 30;
 
 #[derive(Debug, Clone)]
 pub enum Decision {
@@ -20,7 +22,13 @@ pub struct Pending {
     pub sender: oneshot::Sender<Decision>,
 }
 
-type RememberedMap = HashMap<String, (Decision, Option<Instant>)>;
+#[derive(Debug, Clone)]
+pub struct RememberedDecision {
+    pub decision: Decision,
+    pub deadline_secs: Option<i64>,
+}
+
+type RememberedMap = HashMap<String, RememberedDecision>;
 
 #[derive(Default, Clone)]
 pub struct ApprovalBroker {
@@ -39,16 +47,17 @@ impl ApprovalBroker {
         tool: &str,
         args_hash: &str,
     ) -> Option<Decision> {
-        let key = format!("{server_name}::{tool}::{args_hash}");
+        let key = composite_key(server_name, tool, args_hash);
+        let now = now_secs();
         let mut guard = self.remembered.lock().await;
-        if let Some((dec, until)) = guard.get(&key).cloned() {
-            if let Some(deadline) = until {
-                if deadline <= Instant::now() {
+        if let Some(record) = guard.get(&key).cloned() {
+            if let Some(deadline) = record.deadline_secs {
+                if deadline <= now {
                     guard.remove(&key);
                     return None;
                 }
             }
-            return Some(dec);
+            return Some(record.decision);
         }
         None
     }
@@ -71,36 +80,36 @@ impl ApprovalBroker {
         (id, rx)
     }
 
-    pub async fn approve(
-        &self,
-        id: &str,
-        remember: RememberMode,
-    ) -> Option<(String, String, String)> {
+    pub async fn approve(&self, id: &str, remember: RememberMode) -> Option<ApproveResult> {
         let pending = self.inner.lock().await.remove(id)?;
-        let key = (
-            pending.server_name.clone(),
-            pending.tool.clone(),
-            pending.args_hash.clone(),
-        );
-        let composite = format!("{}::{}::{}", key.0, key.1, key.2);
-        match remember {
-            RememberMode::Once => {}
-            RememberMode::Session => {
-                self.remembered
-                    .lock()
-                    .await
-                    .insert(composite, (Decision::Allow, None));
-            }
+        let server = pending.server_name.clone();
+        let tool = pending.tool.clone();
+        let args_hash = pending.args_hash.clone();
+        let composite = composite_key(&server, &tool, &args_hash);
+
+        let deadline_secs = match remember {
+            RememberMode::Once => None,
+            RememberMode::Session => Some(None),
             RememberMode::ManifestVersion => {
-                let deadline = Instant::now() + Duration::from_secs(60 * 60 * 24 * 30);
-                self.remembered
-                    .lock()
-                    .await
-                    .insert(composite, (Decision::Allow, Some(deadline)));
+                Some(Some(now_secs() + REMEMBER_MANIFEST_VERSION_SECONDS))
             }
+        };
+        if let Some(maybe_deadline) = deadline_secs {
+            self.remembered.lock().await.insert(
+                composite.clone(),
+                RememberedDecision {
+                    decision: Decision::Allow,
+                    deadline_secs: maybe_deadline,
+                },
+            );
         }
         let _ = pending.sender.send(Decision::Allow);
-        Some(key)
+        Some(ApproveResult {
+            server,
+            tool,
+            args_hash,
+            persisted_deadline: deadline_secs,
+        })
     }
 
     pub async fn deny(&self, id: &str) -> Option<(String, String, String)> {
@@ -110,6 +119,8 @@ impl ApprovalBroker {
             pending.tool.clone(),
             pending.args_hash.clone(),
         );
+        let composite = composite_key(&key.0, &key.1, &key.2);
+        self.remembered.lock().await.remove(&composite);
         let _ = pending.sender.send(Decision::Deny);
         Some(key)
     }
@@ -119,6 +130,50 @@ impl ApprovalBroker {
             let _ = pending.sender.send(Decision::Timeout);
         }
     }
+
+    pub async fn restore_remembered(&self, items: Vec<(String, String, String, Option<i64>)>) {
+        let now = now_secs();
+        let mut guard = self.remembered.lock().await;
+        for (server, tool, args_hash, deadline) in items {
+            if let Some(d) = deadline {
+                if d <= now {
+                    continue;
+                }
+            }
+            guard.insert(
+                composite_key(&server, &tool, &args_hash),
+                RememberedDecision {
+                    decision: Decision::Allow,
+                    deadline_secs: deadline,
+                },
+            );
+        }
+    }
+
+    pub async fn forget_server(&self, server: &str) {
+        let prefix = format!("{server}::");
+        let mut guard = self.remembered.lock().await;
+        guard.retain(|k, _| !k.starts_with(&prefix));
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ApproveResult {
+    pub server: String,
+    pub tool: String,
+    pub args_hash: String,
+    pub persisted_deadline: Option<Option<i64>>,
+}
+
+fn composite_key(server: &str, tool: &str, args_hash: &str) -> String {
+    format!("{server}::{tool}::{args_hash}")
+}
+
+fn now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 pub async fn notify_user(server_name: &str, tool: &str, approval_id: &str) {

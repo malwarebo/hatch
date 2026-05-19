@@ -5,7 +5,7 @@ pub mod proxy;
 pub mod sni;
 
 pub use dns::{DnsResolver, DnsResolverHandle};
-pub use proxy::{ProxyServer, ProxyServerHandle};
+pub use proxy::{make_event_channel, ProxyServer, ProxyServerHandle};
 pub use sni::{extract_sni, host_matches, SniError};
 
 use std::net::SocketAddr;

@@ -1,0 +1,25 @@
+[package]
+name = "hatch-linux-helper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Per-server pre-exec helper that attaches the target process to its cgroup, applies Landlock and seccomp, then execs the manifest program."
+
+[lib]
+name = "hatch_linux_helper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hatch-linux-helper"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+seccompiler = "0.5"
+libc = "0.2"

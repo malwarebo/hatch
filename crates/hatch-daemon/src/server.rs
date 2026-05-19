@@ -44,21 +44,55 @@ pub async fn run(paths: &DaemonPaths, socket: &Path, opts: DaemonOptions) -> Res
     if crashed > 0 {
         warn!(target: "hatch::daemon", "{crashed} previously-running server(s) marked crashed");
     }
+    let _ = metrics::init();
     let audit = AuditWriter::open(&paths.audit_dir, true).context("open audit writer")?;
     let _ = audit.seal_old_files();
-    let _ = audit.write(
-        EventBuilder::new(EventType::DaemonStart)
+    {
+        let ev = EventBuilder::new(EventType::DaemonStart)
             .field("version", version_string())
-            .field("pid", std::process::id()),
-    );
+            .field("pid", std::process::id());
+        let ty = ev.event_type();
+        match audit.write(ev) {
+            Ok(_) => {
+                if let Some(m) = metrics::get() {
+                    m.audit_events_total.with_label_values(&[ty.as_str()]).inc();
+                }
+            }
+            Err(e) => {
+                warn!(target: "hatch::audit", "audit write failed: {e}");
+                if let Some(m) = metrics::get() {
+                    m.audit_write_errors_total.inc();
+                }
+            }
+        }
+    }
 
     let proxy_registry = ProxyRegistry::new();
 
     let (proxy_handle, dns_handle, proxy_port, dns_port) = if opts.enable_proxy {
+        let (event_tx, mut event_rx) = hatch_proxy::make_event_channel(64);
+        tokio::spawn(async move {
+            while let Some(ev) = event_rx.recv().await {
+                if let Some(m) = metrics::get() {
+                    match ev {
+                        hatch_proxy::ProxyEvent::Allowed { server, .. } => {
+                            m.net_attempts_total
+                                .with_label_values(&[&server, "allow"])
+                                .inc();
+                        }
+                        hatch_proxy::ProxyEvent::Denied { server, .. } => {
+                            m.net_attempts_total
+                                .with_label_values(&[&server, "deny"])
+                                .inc();
+                        }
+                    }
+                }
+            }
+        });
         let proxy_srv = ProxyServer {
             listen: "127.0.0.1:0".parse().unwrap(),
             registry: proxy_registry.clone(),
-            events: None,
+            events: Some(event_tx),
         };
         let p = proxy_srv.start().await.context("start proxy")?;
         let proxy_port = p.addr.port();
@@ -94,6 +128,25 @@ pub async fn run(paths: &DaemonPaths, socket: &Path, opts: DaemonOptions) -> Res
     let _ = metrics::init();
 
     let broker = ApprovalBroker::new();
+    let now_secs = time::OffsetDateTime::now_utc().unix_timestamp();
+    if let Err(e) = store.purge_expired_approvals(now_secs) {
+        warn!(target: "hatch::daemon", "purge_expired_approvals: {e}");
+    }
+    match store.list_active_remembered_approvals(now_secs) {
+        Ok(rows) => {
+            let count = rows.len();
+            let items: Vec<(String, String, String, Option<i64>)> = rows
+                .into_iter()
+                .map(|r| (r.server_id, r.tool, r.args_hash, r.remembered_until))
+                .collect();
+            broker.restore_remembered(items).await;
+            if count > 0 {
+                info!(target: "hatch::daemon", "restored {count} remembered approval(s)");
+            }
+        }
+        Err(e) => warn!(target: "hatch::daemon", "load remembered approvals: {e}"),
+    }
+
     let state = Arc::new(DaemonState::new(DaemonStateInit {
         paths: paths.clone(),
         store,
@@ -258,7 +311,7 @@ async fn serve_connection(
                 allow_unsigned,
             } => match manifests::install(&state, &source, allow_unsigned) {
                 Ok(out) => {
-                    let _ = state.audit.write(
+                    state.record_audit(
                         EventBuilder::new(EventType::ConfigSync)
                             .server(out.name.clone())
                             .field("op", "install")
@@ -342,12 +395,25 @@ async fn serve_connection(
                 approval_id,
                 remember,
             } => match state.broker.approve(&approval_id, remember).await {
-                Some((server, tool, _)) => {
-                    let _ = state.audit.write(
+                Some(result) => {
+                    if let Some(maybe_deadline) = result.persisted_deadline {
+                        let row = hatch_state::RememberedApprovalRow {
+                            id: format!("{}::{}::{}", result.server, result.tool, result.args_hash),
+                            server_id: result.server.clone(),
+                            tool: result.tool.clone(),
+                            args_hash: result.args_hash.clone(),
+                            decided_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+                            remembered_until: maybe_deadline,
+                        };
+                        if let Err(e) = state.store.upsert_remembered_approval(&row) {
+                            warn!(target: "hatch::daemon", "persist approval: {e}");
+                        }
+                    }
+                    state.record_audit(
                         EventBuilder::new(EventType::ApprovalGranted)
-                            .server(&server)
+                            .server(&result.server)
                             .field("approval_id", approval_id.clone())
-                            .field("tool", tool),
+                            .field("tool", result.tool.clone()),
                     );
                     send(&writer, &DaemonResponse::Ok).await?;
                 }
@@ -355,7 +421,7 @@ async fn serve_connection(
             },
             ClientRequest::Deny { approval_id } => match state.broker.deny(&approval_id).await {
                 Some((server, tool, _)) => {
-                    let _ = state.audit.write(
+                    state.record_audit(
                         EventBuilder::new(EventType::ApprovalDenied)
                             .server(&server)
                             .field("approval_id", approval_id.clone())
@@ -423,8 +489,11 @@ async fn evaluate_policy(
         m.tool_calls_total
             .with_label_values(&[&srv.manifest_name, tool, decision_label])
             .inc();
+        m.tool_call_latency_seconds
+            .with_label_values(&[&srv.manifest_name, tool])
+            .observe((report.elapsed_ms as f64) / 1000.0);
     }
-    let _ = state.audit.write(
+    state.record_audit(
         EventBuilder::new(EventType::ToolCall)
             .server(&srv.manifest_name)
             .server_id(server_id)
@@ -444,7 +513,7 @@ async fn evaluate_policy(
                 .request(srv.manifest_name.clone(), tool.to_string(), args_hash)
                 .await;
 
-            let _ = state.audit.write(
+            state.record_audit(
                 EventBuilder::new(EventType::ApprovalRequested)
                     .server(&srv.manifest_name)
                     .server_id(server_id)
@@ -454,10 +523,16 @@ async fn evaluate_policy(
             );
             crate::approvals::notify_user(&srv.manifest_name, tool, &approval_id).await;
 
+            let approval_started = std::time::Instant::now();
             let timeout =
                 Duration::from_secs(srv.policy.manifest.resources.tool_call_timeout_seconds as u64);
             let outcome = tokio::time::timeout(timeout, &mut rx).await;
             let _ = response_filter::defaults();
+            if let Some(m) = metrics::get() {
+                m.approval_latency_seconds
+                    .with_label_values(&[&srv.manifest_name])
+                    .observe(approval_started.elapsed().as_secs_f64());
+            }
             match outcome {
                 Ok(Ok(Decision::Allow)) => PolicyDecision::Allow,
                 Ok(Ok(Decision::Deny)) => PolicyDecision::Deny {

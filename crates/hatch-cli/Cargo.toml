@@ -12,10 +12,13 @@ name = "hatch"
 path = "src/main.rs"
 
 [dependencies]
+hatch-audit = { path = "../hatch-audit" }
 hatch-core = { path = "../hatch-core" }
 hatch-hostcfg = { path = "../hatch-hostcfg" }
 hatch-ipc = { path = "../hatch-ipc" }
 hatch-registry = { path = "../hatch-registry" }
+hatch-sandbox-macos = { path = "../hatch-sandbox-macos" }
+hatch-state = { path = "../hatch-state" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
@@ -47,9 +50,10 @@ recommends = "strace"
 section = "utils"
 priority = "optional"
 assets = [
-    ["target/release/hatch",        "usr/bin/hatch",        "755"],
-    ["target/release/hatch-daemon", "usr/bin/hatch-daemon", "755"],
-    ["target/release/hatch-shim",   "usr/bin/hatch-shim",   "755"],
+    ["target/release/hatch",               "usr/bin/hatch",               "755"],
+    ["target/release/hatch-daemon",        "usr/bin/hatch-daemon",        "755"],
+    ["target/release/hatch-shim",          "usr/bin/hatch-shim",          "755"],
+    ["target/release/hatch-linux-helper",  "usr/bin/hatch-linux-helper",  "755"],
     ["../../packaging/systemd/hatch-daemon.service", "usr/lib/systemd/user/hatch-daemon.service", "644"],
     ["../../LICENSE",   "usr/share/doc/hatch/LICENSE",   "644"],
     ["../../README.md", "usr/share/doc/hatch/README.md", "644"],
@@ -61,9 +65,10 @@ license = "Apache-2.0"
 summary = "Capability-based isolation for AI tool servers"
 requires = { iproute = "*", iptables = "*" }
 assets = [
-    { source = "target/release/hatch",        dest = "/usr/bin/hatch",        mode = "755" },
-    { source = "target/release/hatch-daemon", dest = "/usr/bin/hatch-daemon", mode = "755" },
-    { source = "target/release/hatch-shim",   dest = "/usr/bin/hatch-shim",   mode = "755" },
+    { source = "target/release/hatch",              dest = "/usr/bin/hatch",              mode = "755" },
+    { source = "target/release/hatch-daemon",       dest = "/usr/bin/hatch-daemon",       mode = "755" },
+    { source = "target/release/hatch-shim",         dest = "/usr/bin/hatch-shim",         mode = "755" },
+    { source = "target/release/hatch-linux-helper", dest = "/usr/bin/hatch-linux-helper", mode = "755" },
     { source = "../../packaging/systemd/hatch-daemon.service", dest = "/usr/lib/systemd/user/hatch-daemon.service", mode = "644", config = false },
     { source = "../../LICENSE",   dest = "/usr/share/doc/hatch/LICENSE",   mode = "644", doc = true },
     { source = "../../README.md", dest = "/usr/share/doc/hatch/README.md", mode = "644", doc = true },

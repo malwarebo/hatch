@@ -36,6 +36,16 @@ pub struct ManifestRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RememberedApprovalRow {
+    pub id: String,
+    pub server_id: String,
+    pub tool: String,
+    pub args_hash: String,
+    pub decided_at: i64,
+    pub remembered_until: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningServerRow {
     pub id: String,
     pub manifest_name: String,
@@ -257,6 +267,80 @@ impl Store {
         Ok(n)
     }
 
+    pub fn upsert_remembered_approval(
+        &self,
+        row: &RememberedApprovalRow,
+    ) -> Result<(), StateError> {
+        let conn = self.conn.lock().expect("state mutex poisoned");
+        conn.execute(
+            "INSERT INTO approvals (id, server_id, tool, args_hash, args_summary,
+                                    decision, requested_at, decided_at, remembered_until)
+             VALUES (?1, ?2, ?3, ?4, '', 'allow', ?5, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+                 decision = excluded.decision,
+                 decided_at = excluded.decided_at,
+                 remembered_until = excluded.remembered_until",
+            params![
+                row.id,
+                row.server_id,
+                row.tool,
+                row.args_hash,
+                row.decided_at,
+                row.remembered_until,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_active_remembered_approvals(
+        &self,
+        now_seconds: i64,
+    ) -> Result<Vec<RememberedApprovalRow>, StateError> {
+        let conn = self.conn.lock().expect("state mutex poisoned");
+        let mut stmt = conn.prepare(
+            "SELECT id, server_id, tool, args_hash, decided_at, remembered_until
+             FROM approvals
+             WHERE decision = 'allow'
+               AND (remembered_until IS NULL OR remembered_until > ?1)",
+        )?;
+        let rows = stmt.query_map(params![now_seconds], |r| {
+            Ok(RememberedApprovalRow {
+                id: r.get(0)?,
+                server_id: r.get(1)?,
+                tool: r.get(2)?,
+                args_hash: r.get(3)?,
+                decided_at: r.get(4)?,
+                remembered_until: r.get(5)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn purge_expired_approvals(&self, now_seconds: i64) -> Result<usize, StateError> {
+        let conn = self.conn.lock().expect("state mutex poisoned");
+        let n = conn.execute(
+            "DELETE FROM approvals
+             WHERE decision = 'allow'
+               AND remembered_until IS NOT NULL
+               AND remembered_until <= ?1",
+            params![now_seconds],
+        )?;
+        Ok(n)
+    }
+
+    pub fn forget_approvals_for(&self, server_id: &str) -> Result<usize, StateError> {
+        let conn = self.conn.lock().expect("state mutex poisoned");
+        let n = conn.execute(
+            "DELETE FROM approvals WHERE server_id = ?1",
+            params![server_id],
+        )?;
+        Ok(n)
+    }
+
     pub fn get_config(&self, key: &str) -> Result<Option<String>, StateError> {
         let conn = self.conn.lock().expect("state mutex poisoned");
         conn.query_row(
@@ -390,6 +474,53 @@ mod tests {
 
         s.delete_running("id-1").unwrap();
         assert_eq!(s.list_running(true).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn remembered_approval_round_trip() {
+        let (s, _d) = store();
+        let now = 1_700_000_000;
+        let row = RememberedApprovalRow {
+            id: "github::create_issue::sha256:abc".into(),
+            server_id: "github".into(),
+            tool: "create_issue".into(),
+            args_hash: "sha256:abc".into(),
+            decided_at: now,
+            remembered_until: None,
+        };
+        s.upsert_remembered_approval(&row).unwrap();
+
+        let active = s.list_active_remembered_approvals(now + 60).unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].server_id, "github");
+
+        let expiring = RememberedApprovalRow {
+            id: "fs::write::sha256:xyz".into(),
+            server_id: "fs".into(),
+            tool: "write".into(),
+            args_hash: "sha256:xyz".into(),
+            decided_at: now,
+            remembered_until: Some(now + 30),
+        };
+        s.upsert_remembered_approval(&expiring).unwrap();
+        assert_eq!(
+            s.list_active_remembered_approvals(now + 60).unwrap().len(),
+            1
+        );
+        assert_eq!(
+            s.list_active_remembered_approvals(now + 20).unwrap().len(),
+            2
+        );
+
+        let purged = s.purge_expired_approvals(now + 60).unwrap();
+        assert_eq!(purged, 1);
+
+        let forgotten = s.forget_approvals_for("github").unwrap();
+        assert_eq!(forgotten, 1);
+        assert_eq!(
+            s.list_active_remembered_approvals(now + 60).unwrap().len(),
+            0
+        );
     }
 
     #[test]

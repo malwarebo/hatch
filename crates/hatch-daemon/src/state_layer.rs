@@ -1,12 +1,13 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use hatch_audit::AuditWriter;
+use hatch_audit::{AuditWriter, EventBuilder};
 use hatch_ipc::DaemonPaths;
 use hatch_proxy::ProxyRegistry;
 use hatch_state::Store;
 
 use crate::approvals::ApprovalBroker;
+use crate::metrics;
 
 pub struct DaemonState {
     pub paths: DaemonPaths,
@@ -48,5 +49,22 @@ impl DaemonState {
 
     pub fn uptime_seconds(&self) -> u64 {
         self.started_at.elapsed().as_secs()
+    }
+
+    pub fn record_audit(&self, ev: EventBuilder) {
+        let ty = ev.event_type();
+        match self.audit.write(ev) {
+            Ok(_) => {
+                if let Some(m) = metrics::get() {
+                    m.audit_events_total.with_label_values(&[ty.as_str()]).inc();
+                }
+            }
+            Err(e) => {
+                tracing::warn!(target: "hatch::audit", event_type = %ty.as_str(), error = %e, "audit write failed");
+                if let Some(m) = metrics::get() {
+                    m.audit_write_errors_total.inc();
+                }
+            }
+        }
     }
 }

@@ -120,19 +120,52 @@ enum Cmd {
     Registry(RegistrySubCmd),
     #[command(subcommand, about = "Daemon control")]
     Daemon(DaemonCmd),
+    #[command(subcommand, about = "Debug helpers")]
+    Debug(DebugCmd),
+}
+
+#[derive(Debug, Subcommand)]
+enum DebugCmd {
+    #[command(about = "Verify the SHA-256 hash chain across an audit JSONL file")]
+    AuditVerify {
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long)]
+        all: bool,
+    },
+    #[command(about = "Render the compiled platform sandbox profile for an installed manifest")]
+    Profile { name: String },
 }
 
 #[derive(Debug, Subcommand)]
 enum ManifestCmd {
-    Validate { path: PathBuf },
-    Explain { path: PathBuf },
-    Show { name: String },
-    Diff { name: String, path: PathBuf },
+    Validate {
+        path: PathBuf,
+    },
+    Explain {
+        path: PathBuf,
+    },
+    Show {
+        name: String,
+    },
+    Diff {
+        name: String,
+        path: PathBuf,
+    },
+    #[command(about = "Open an installed manifest in $EDITOR; validates and reinstalls on save")]
+    Edit {
+        name: String,
+        #[arg(long, help = "Skip signature checks on reinstall")]
+        allow_unsigned: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 enum ConfigCmd {
-    Status,
+    Status {
+        #[arg(long, help = "Also check ./.cursor/mcp.json in the current directory")]
+        workspace: bool,
+    },
     Sync {
         #[arg(long)]
         host: Option<String>,
@@ -140,10 +173,25 @@ enum ConfigCmd {
         shim_path: Option<String>,
         #[arg(long)]
         force: bool,
+        #[arg(
+            long,
+            help = "Rewrite ./.cursor/mcp.json in the current directory instead of the global Cursor config"
+        )]
+        workspace: bool,
+        #[arg(
+            long,
+            value_name = "PATH",
+            help = "Rewrite the per-workspace .cursor/mcp.json under PATH"
+        )]
+        workspace_path: Option<PathBuf>,
     },
     Unsync {
         #[arg(long)]
         host: Option<String>,
+        #[arg(long, help = "Restore ./.cursor/mcp.json in the current directory")]
+        workspace: bool,
+        #[arg(long, value_name = "PATH")]
+        workspace_path: Option<PathBuf>,
     },
 }
 
@@ -229,6 +277,10 @@ async fn run(cli: Cli) -> Result<u8> {
         Cmd::Manifest(ManifestCmd::Diff { name, path }) => {
             cmd_manifest_diff(&socket, &name, &path).await
         }
+        Cmd::Manifest(ManifestCmd::Edit {
+            name,
+            allow_unsigned,
+        }) => cmd_manifest_edit(&socket, &paths, &name, allow_unsigned).await,
 
         Cmd::Observe { output, command } => {
             if command.is_empty() {
@@ -354,13 +406,157 @@ async fn run(cli: Cli) -> Result<u8> {
 
         Cmd::Config(c) => cmd_config(c, &paths),
         Cmd::Registry(c) => cmd_registry(c, &paths, cli.format),
+        Cmd::Debug(c) => cmd_debug(c, &paths, cli.format).await,
     }
+}
+
+async fn cmd_debug(c: DebugCmd, paths: &DaemonPaths, format: OutputFormat) -> Result<u8> {
+    match c {
+        DebugCmd::AuditVerify { path, all } => {
+            let mut files: Vec<PathBuf> = Vec::new();
+            if let Some(p) = path {
+                files.push(p);
+            } else if all {
+                if let Ok(entries) = std::fs::read_dir(&paths.audit_dir) {
+                    for e in entries.flatten() {
+                        let p = e.path();
+                        if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+                            if name.starts_with("audit-") && name.ends_with(".jsonl") {
+                                files.push(p);
+                            }
+                        }
+                    }
+                    files.sort();
+                }
+            } else {
+                let today = time::OffsetDateTime::now_utc()
+                    .format(&time::macros::format_description!("[year]-[month]-[day]"))
+                    .unwrap_or_default();
+                files.push(paths.audit_dir.join(format!("audit-{today}.jsonl")));
+            }
+
+            let mut overall_ok = true;
+            for f in &files {
+                if !f.exists() {
+                    println!("{}: missing", f.display());
+                    overall_ok = false;
+                    continue;
+                }
+                match hatch_audit::verify_chain(f) {
+                    Ok(report) => {
+                        if report.ok() {
+                            println!("{}: ok ({} events)", f.display(), report.events);
+                        } else {
+                            overall_ok = false;
+                            println!(
+                                "{}: FAIL ({} events, {} malformed, {} mismatches)",
+                                f.display(),
+                                report.events,
+                                report.malformed_lines,
+                                report.mismatches.len()
+                            );
+                            for m in &report.mismatches {
+                                println!(
+                                    "  line {} ({}): expected {:?}, got {:?}",
+                                    m.line, m.event_id, m.expected, m.actual
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("{}: error: {e}", f.display());
+                        overall_ok = false;
+                    }
+                }
+            }
+            Ok(if overall_ok { 0 } else { 1 })
+        }
+        DebugCmd::Profile { name } => cmd_debug_profile(paths, &name, format).await,
+    }
+}
+
+async fn cmd_debug_profile(paths: &DaemonPaths, name: &str, format: OutputFormat) -> Result<u8> {
+    let row = hatch_state::Store::open(&paths.db_path)
+        .ok()
+        .and_then(|store| store.get_manifest_latest(name).ok().flatten());
+    let toml = match row {
+        Some(r) => r.content,
+        None => {
+            eprintln!("hatch: not installed or unreadable: {name}");
+            return Ok(ErrorCode::NotFound as u8);
+        }
+    };
+    let manifest = Manifest::parse_str(&toml)?;
+    let ctx = hatch_core::template::TemplateContext::from_env();
+    let policy = hatch_core::compile::compile(&manifest, &ctx)?;
+
+    match format {
+        OutputFormat::Json => {
+            let payload = serde_json::json!({
+                "name": manifest.name,
+                "version": manifest.version,
+                "risk_score": policy.risk_score,
+                "resolved_paths_read": policy.resolved_paths_read,
+                "resolved_paths_write": policy.resolved_paths_write,
+                "network_https_exact": policy.network_allow.https_exact,
+                "network_https_suffix": policy.network_allow.https_suffix,
+                "network_dns_exact": policy.network_allow.dns_exact,
+                "network_dns_suffix": policy.network_allow.dns_suffix,
+                "allow_http": policy.network_allow.allow_http,
+                "tool_rules": policy.tool_rules.len(),
+                "response_filters": policy.response_filters.len(),
+            });
+            println!("{}", serde_json::to_string_pretty(&payload)?);
+        }
+        OutputFormat::Text => {
+            println!("manifest:    {} {}", manifest.name, manifest.version);
+            println!(
+                "risk:        {} ({})",
+                policy.risk_score, policy.validation.risk_level
+            );
+            println!("network:");
+            for h in &policy.network_allow.https_exact {
+                println!("  https  exact:    {h}");
+            }
+            for h in &policy.network_allow.https_suffix {
+                println!("  https  *.suffix: {h}");
+            }
+            for h in &policy.network_allow.dns_exact {
+                println!("  dns    exact:    {h}");
+            }
+            for h in &policy.network_allow.dns_suffix {
+                println!("  dns    *.suffix: {h}");
+            }
+            if policy.network_allow.allow_http {
+                println!("  http   ALLOWED (plaintext)");
+            }
+            println!("filesystem:");
+            for p in &policy.resolved_paths_read {
+                println!("  read:  {}", p.display());
+            }
+            for p in &policy.resolved_paths_write {
+                println!("  write: {}", p.display());
+            }
+            println!("tool rules: {}", policy.tool_rules.len());
+            println!("response filters: {}", policy.response_filters.len());
+            if cfg!(target_os = "macos") {
+                let runtime = paths.runtime_dir.to_string_lossy().into_owned();
+                let sbpl =
+                    hatch_sandbox_macos::render_sandbox_exec_profile(&policy, &runtime, 0, 0);
+                println!("\n--- sandbox-exec profile ---\n{sbpl}");
+            }
+        }
+    }
+    Ok(0)
 }
 
 fn cmd_config(c: ConfigCmd, paths: &DaemonPaths) -> Result<u8> {
     match c {
-        ConfigCmd::Status => {
-            let specs = HostSpec::all_known(None);
+        ConfigCmd::Status { workspace } => {
+            let mut specs = HostSpec::all_known(None);
+            if workspace {
+                specs.push(workspace_cursor_spec(None)?);
+            }
             for spec in &specs {
                 let s = hostcfg_status(spec);
                 println!(
@@ -378,8 +574,14 @@ fn cmd_config(c: ConfigCmd, paths: &DaemonPaths) -> Result<u8> {
             host,
             shim_path,
             force,
+            workspace,
+            workspace_path,
         } => {
-            let specs = filtered_hosts(host)?;
+            let specs = if workspace || workspace_path.is_some() {
+                vec![workspace_cursor_spec(workspace_path.as_deref())?]
+            } else {
+                filtered_hosts(host)?
+            };
             let shim = shim_path.unwrap_or_else(default_shim_path);
             let opts = RewriteOptions {
                 shim_path: shim,
@@ -387,11 +589,19 @@ fn cmd_config(c: ConfigCmd, paths: &DaemonPaths) -> Result<u8> {
                 state_dir: Some(paths.state_dir.to_string_lossy().into_owned()),
             };
             for spec in specs {
+                let label = host_label(&spec);
                 match hostcfg_sync(&spec, &opts) {
+                    Ok(report) if report.skipped => {
+                        println!(
+                            "{:<14}  skipped (no config at {})",
+                            label,
+                            spec.path.display()
+                        );
+                    }
                     Ok(report) => {
                         println!(
                             "{:<14}  wrapped {} server(s)  backup={}",
-                            spec.kind.slug(),
+                            label,
                             report.wrapped_servers.len(),
                             report
                                 .backup_path
@@ -399,26 +609,56 @@ fn cmd_config(c: ConfigCmd, paths: &DaemonPaths) -> Result<u8> {
                                 .unwrap_or_else(|| "(none)".into())
                         );
                     }
-                    Err(e) => println!("{:<14}  error: {e}", spec.kind.slug()),
+                    Err(e) => println!("{:<14}  error: {e}", label),
                 }
             }
             Ok(0)
         }
-        ConfigCmd::Unsync { host } => {
-            let specs = filtered_hosts(host)?;
+        ConfigCmd::Unsync {
+            host,
+            workspace,
+            workspace_path,
+        } => {
+            let specs = if workspace || workspace_path.is_some() {
+                vec![workspace_cursor_spec(workspace_path.as_deref())?]
+            } else {
+                filtered_hosts(host)?
+            };
             for spec in specs {
+                let label = host_label(&spec);
                 match hostcfg_restore(&spec) {
                     Ok(report) => println!(
                         "{:<14}  restored {} server(s)",
-                        spec.kind.slug(),
+                        label,
                         report.wrapped_servers.len()
                     ),
-                    Err(e) => println!("{:<14}  error: {e}", spec.kind.slug()),
+                    Err(e) => println!("{:<14}  error: {e}", label),
                 }
             }
             Ok(0)
         }
     }
+}
+
+fn host_label(spec: &HostSpec) -> String {
+    if spec.kind == HostKind::Cursor {
+        let home_cursor = dirs::home_dir().map(|h| h.join(".cursor/mcp.json"));
+        if home_cursor.as_deref() != Some(spec.path.as_path()) {
+            return "cursor[ws]".to_string();
+        }
+    }
+    spec.kind.slug().to_string()
+}
+
+fn workspace_cursor_spec(explicit: Option<&std::path::Path>) -> Result<HostSpec> {
+    let dir = match explicit {
+        Some(p) => p.to_path_buf(),
+        None => std::env::current_dir().context("resolving current dir")?,
+    };
+    Ok(HostSpec {
+        kind: HostKind::Cursor,
+        path: dir.join(".cursor").join("mcp.json"),
+    })
 }
 
 fn filtered_hosts(filter: Option<String>) -> Result<Vec<HostSpec>> {
@@ -760,6 +1000,97 @@ async fn cmd_manifest_show(socket: &PathBuf, name: &str) -> Result<u8> {
         }
         other => bail_resp(other),
     }
+}
+
+async fn cmd_manifest_edit(
+    socket: &PathBuf,
+    paths: &DaemonPaths,
+    name: &str,
+    allow_unsigned: bool,
+) -> Result<u8> {
+    let store = hatch_state::Store::open(&paths.db_path)
+        .with_context(|| format!("opening state db at {}", paths.db_path.display()))?;
+    let row = match store.get_manifest_latest(name)? {
+        Some(r) => r,
+        None => {
+            eprintln!("hatch: not installed: {name}");
+            return Ok(ErrorCode::NotFound as u8);
+        }
+    };
+
+    let tmp_dir = std::env::temp_dir();
+    let tmp = tmp_dir.join(format!("hatch-edit-{}-{}.toml", name, std::process::id()));
+    std::fs::write(&tmp, &row.content)?;
+    let original = row.content.clone();
+
+    let editor = std::env::var("VISUAL")
+        .or_else(|_| std::env::var("EDITOR"))
+        .unwrap_or_else(|_| "vi".to_string());
+
+    let status = std::process::Command::new(&editor).arg(&tmp).status();
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            eprintln!("hatch: editor {editor} exited with {s}");
+            let _ = std::fs::remove_file(&tmp);
+            return Ok(1);
+        }
+        Err(e) => {
+            eprintln!("hatch: failed to launch editor {editor}: {e}");
+            let _ = std::fs::remove_file(&tmp);
+            return Ok(1);
+        }
+    }
+
+    let edited = std::fs::read_to_string(&tmp)?;
+    if edited == original {
+        eprintln!("hatch: no changes");
+        let _ = std::fs::remove_file(&tmp);
+        return Ok(0);
+    }
+
+    let parsed = match Manifest::parse_str(&edited) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("hatch: edit rejected, manifest does not parse: {e}");
+            eprintln!("       (your changes remain at {})", tmp.display());
+            return Ok(2);
+        }
+    };
+    if parsed.name != name {
+        eprintln!(
+            "hatch: edit rejected, manifest name changed from {} to {}",
+            name, parsed.name
+        );
+        return Ok(2);
+    }
+    let report = validate::validate(&parsed);
+    if !report.errors.is_empty() {
+        eprintln!("hatch: edit rejected, validation errors:");
+        for err in &report.errors {
+            eprintln!("  {err:?}");
+        }
+        eprintln!("       (your changes remain at {})", tmp.display());
+        return Ok(2);
+    }
+
+    let final_path = tmp.clone();
+    let resp = call_one(
+        socket,
+        ClientRequest::Install {
+            source: InstallSource::File {
+                path: final_path.to_string_lossy().into_owned(),
+            },
+            allow_unsigned,
+        },
+    )
+    .await?;
+    let code = expect_ok(&resp)?;
+    let _ = std::fs::remove_file(&tmp);
+    if code == 0 {
+        println!("ok edited {} -> {}", name, parsed.version);
+    }
+    Ok(code)
 }
 
 async fn cmd_manifest_diff(socket: &PathBuf, name: &str, file: &PathBuf) -> Result<u8> {

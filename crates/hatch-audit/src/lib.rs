@@ -122,6 +122,10 @@ impl EventBuilder {
         self.fields.insert(key.into(), value.into());
         self
     }
+
+    pub fn event_type(&self) -> EventType {
+        self.event_type
+    }
 }
 
 pub struct AuditWriter {
@@ -321,6 +325,70 @@ pub fn read_file(path: impl AsRef<Path>) -> Result<(Vec<AuditEvent>, usize), Aud
     Ok((out, bad))
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ChainReport {
+    pub path: PathBuf,
+    pub events: usize,
+    pub malformed_lines: usize,
+    pub mismatches: Vec<ChainMismatch>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChainMismatch {
+    pub line: usize,
+    pub event_id: String,
+    pub expected: String,
+    pub actual: String,
+}
+
+impl ChainReport {
+    pub fn ok(&self) -> bool {
+        self.mismatches.is_empty() && self.malformed_lines == 0
+    }
+}
+
+pub fn verify_chain(path: impl AsRef<Path>) -> Result<ChainReport, AuditError> {
+    let path = path.as_ref().to_path_buf();
+    let raw = std::fs::read_to_string(&path)?;
+    let mut report = ChainReport {
+        path: path.clone(),
+        ..Default::default()
+    };
+    let mut prev_hash: Option<String> = None;
+
+    for (idx, line) in raw.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let event: AuditEvent = match serde_json::from_str(trimmed) {
+            Ok(ev) => ev,
+            Err(_) => {
+                report.malformed_lines += 1;
+                continue;
+            }
+        };
+        report.events += 1;
+
+        let actual = event.prev_hash.clone().unwrap_or_default();
+        let expected = prev_hash.clone().unwrap_or_default();
+        if actual != expected {
+            report.mismatches.push(ChainMismatch {
+                line: idx + 1,
+                event_id: event.event_id.clone(),
+                expected,
+                actual,
+            });
+        }
+
+        let mut hasher = Sha256::new();
+        hasher.update(trimmed.as_bytes());
+        let digest = hasher.finalize();
+        prev_hash = Some(base64::engine::general_purpose::STANDARD_NO_PAD.encode(digest));
+    }
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,6 +459,55 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("4-items"));
+    }
+
+    #[test]
+    fn chain_verifies_intact_file() {
+        let dir = tempdir().unwrap();
+        let w = AuditWriter::open(dir.path(), true).unwrap();
+        w.write(EventBuilder::new(EventType::DaemonStart).field("v", "0.1.0"))
+            .unwrap();
+        w.write(EventBuilder::new(EventType::ServerSpawn).server("x"))
+            .unwrap();
+        w.write(EventBuilder::new(EventType::DaemonStop).field("reason", "test"))
+            .unwrap();
+
+        let path = std::fs::read_dir(dir.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let report = verify_chain(&path).unwrap();
+        assert!(report.ok(), "mismatches: {:?}", report.mismatches);
+        assert_eq!(report.events, 3);
+    }
+
+    #[test]
+    fn chain_detects_tampering() {
+        let dir = tempdir().unwrap();
+        let w = AuditWriter::open(dir.path(), true).unwrap();
+        w.write(EventBuilder::new(EventType::DaemonStart).field("v", "0.1.0"))
+            .unwrap();
+        w.write(EventBuilder::new(EventType::ServerSpawn).server("a"))
+            .unwrap();
+        w.write(EventBuilder::new(EventType::DaemonStop).field("reason", "test"))
+            .unwrap();
+
+        let path = std::fs::read_dir(dir.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+
+        let raw = std::fs::read_to_string(&path).unwrap();
+        let tampered = raw.replacen("\"server\":\"a\"", "\"server\":\"b\"", 1);
+        std::fs::write(&path, tampered).unwrap();
+
+        let report = verify_chain(&path).unwrap();
+        assert!(!report.ok());
+        assert!(!report.mismatches.is_empty());
     }
 
     #[test]

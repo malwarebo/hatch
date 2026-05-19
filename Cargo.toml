@@ -8,6 +8,7 @@ members = [
     "crates/hatch-sandbox",
     "crates/hatch-sandbox-linux",
     "crates/hatch-sandbox-macos",
+    "crates/hatch-linux-helper",
     "crates/hatch-proxy",
     "crates/hatch-protocol",
     "crates/hatch-audit",

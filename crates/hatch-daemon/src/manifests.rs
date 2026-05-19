@@ -7,6 +7,7 @@ use hatch_ipc::{ErrorCode, InstallSource, ManifestSummary};
 use hatch_state::ManifestRow;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use tracing::warn;
 
 use crate::state_layer::DaemonState;
 
@@ -82,7 +83,7 @@ pub fn install(
         .put_manifest(&row)
         .map_err(|e| (ErrorCode::Internal, format!("persist: {e}")))?;
 
-    let _ = state.audit.write(
+    state.record_audit(
         EventBuilder::new(EventType::SignatureVerified)
             .server(&manifest.name)
             .field("source", source_label)
@@ -126,7 +127,15 @@ pub fn uninstall(state: &DaemonState, name: &str) -> Result<usize> {
     if removed == 0 {
         return Err(anyhow!("no manifest named {name}"));
     }
-    let _ = state.audit.write(
+    if let Err(e) = state.store.forget_approvals_for(name) {
+        warn!(target: "hatch::daemon::manifests", "forget approvals for {name}: {e}");
+    }
+    let broker = state.broker.clone();
+    let server = name.to_string();
+    tokio::spawn(async move {
+        broker.forget_server(&server).await;
+    });
+    state.record_audit(
         EventBuilder::new(EventType::ConfigSync)
             .server(name)
             .field("op", "uninstall"),

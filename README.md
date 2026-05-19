@@ -40,9 +40,11 @@ flowchart LR
     Proxy -->|verified SNI| Net
 ```
 
-Sandbox enforcement on Linux: user/mount/pid/net namespaces, cgroups v2, and
-iptables redirects inside a per-server netns. On macOS: `sandbox-exec`
-profile, PF anchor per sandbox UID, and a UID pool.
+Sandbox enforcement on Linux: user/mount/pid/net namespaces, cgroups v2,
+iptables redirects inside a per-server netns, and a pre-exec helper
+(`hatch-linux-helper`) that applies Landlock and seccomp before handing off
+to the manifest's program. On macOS: `sandbox-exec` profile, PF anchor per
+sandbox UID, and a UID pool.
 
 Every tool call from the host passes through the shim, which queries the
 daemon's compiled policy (deny lists, glob patterns, CEL rules over arguments,
@@ -161,12 +163,15 @@ hatch manifest validate PATH
 hatch manifest explain PATH
 hatch manifest show NAME
 hatch manifest diff NAME PATH
-hatch config status
-hatch config sync [--host H] [--force]
-hatch config unsync [--host H]
+hatch manifest edit NAME              open in $EDITOR, validate, reinstall
+hatch config status [--workspace]
+hatch config sync [--host H] [--force] [--workspace | --workspace-path DIR]
+hatch config unsync [--host H] [--workspace | --workspace-path DIR]
 hatch registry install-bundle PATH
 hatch registry list
 hatch registry verify NAME
+hatch debug audit-verify [--path FILE | --all]   verify the audit hash chain
+hatch debug profile NAME              render the compiled platform profile
 hatch daemon status | stop
 hatch doctor
 hatch version
@@ -232,7 +237,7 @@ and [`manifests/schema/manifest.schema.json`](manifests/schema/manifest.schema.j
 
 ## Outstanding
 
-Items that require external action or a real host:
+Items that require external action:
 
 - Apple Developer enrollment, signing certificates, and a notarytool keychain
   profile. The scripts in `scripts/notarize-macos.sh` and `scripts/release.sh`
@@ -243,9 +248,9 @@ Items that require external action or a real host:
 - The `manifests.hatch.sh` static registry browser. The registry-side TOML and
   schema are in `manifests/`; the static site is a separate Astro project not
   in this repository.
-- Paid third-party security audit (Trail of Bits, Cure53, NCC, or equivalent).
 - Live exercise of the Linux backend on a real Linux host with user
-  namespaces, cgroups v2, and Landlock 5.13+. The crate cross-compiles
-  cleanly for `x86_64-unknown-linux-gnu` and CI runs the workspace tests on
-  `ubuntu-latest`, but the namespace + cgroup + iptables wiring is only
-  exercised on a real host.
+  namespaces, cgroups v2, Landlock 5.13+, and seccomp-bpf. The workspace
+  cross-compiles cleanly for `x86_64-unknown-linux-gnu` / `aarch64-unknown-linux-gnu`
+  in CI, but the namespace + cgroup + iptables wiring in `hatch-sandbox-linux`
+  and the Landlock + seccomp filters applied by `hatch-linux-helper` only
+  run end-to-end on a real host.

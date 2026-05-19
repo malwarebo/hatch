@@ -127,7 +127,7 @@ impl Runner {
             status: "running".into(),
         })?;
 
-        let _ = self.state.audit.write(
+        self.state.record_audit(
             EventBuilder::new(EventType::ServerSpawn)
                 .server(&manifest.name)
                 .server_id(&id)
@@ -176,7 +176,7 @@ impl Runner {
                 .store
                 .set_status(&waiter_id, "exited")
                 .map_err(|e| warn!(target: "hatch::daemon::runner", "set_status: {e}"));
-            let _ = waiter_state.audit.write(
+            waiter_state.record_audit(
                 EventBuilder::new(EventType::ServerExit)
                     .server(&waiter_name)
                     .server_id(&waiter_id)

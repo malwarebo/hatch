@@ -39,3 +39,8 @@ fn write_value(dir: &Path, file: &str, value: impl AsRef<str>) -> Result<()> {
     let target = dir.join(file);
     fs::write(&target, value.as_ref()).map_err(|e| anyhow!("write {target:?}: {e}"))
 }
+
+pub fn attach_pid(cgroup_dir: &Path, pid: u32) -> Result<()> {
+    let target = cgroup_dir.join("cgroup.procs");
+    fs::write(&target, pid.to_string()).map_err(|e| anyhow!("attach pid to {target:?}: {e}"))
+}
