@@ -267,3 +267,11 @@ Items that require external action:
   in CI, but the namespace + cgroup + iptables wiring in `hatch-sandbox-linux`
   and the Landlock + seccomp filters applied by `hatch-linux-helper` only
   run end-to-end on a real host.
+- Release-artifact signing. The release workflow currently produces a
+  `SHA256SUMS` file alongside the binaries, but the artifacts themselves
+  are unsigned. minisign or Sigstore (`cosign`) signing belongs in `v0.2`,
+  along with a `hatch.pub` key checked into the repository.
+- One-line installer. A `curl | sh` installer that auto-detects platform
+  and arch, downloads the right artifact, verifies its signature, and
+  enables the daemon (systemd user unit on Linux, `launchd` agent on
+  macOS) belongs in `v0.2`.
