@@ -18,7 +18,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: resolve version
+        id: ver
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ -n "${VERSION_INPUT:-}" ]; then
+            echo "version=$VERSION_INPUT" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
   build-linux:
+    needs: meta
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -28,6 +46,7 @@ jobs:
           - aarch64-unknown-linux-gnu
     env:
       TARGET: ${{ matrix.target }}
+      VERSION: ${{ needs.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -53,8 +72,8 @@ jobs:
           cp "target/$TARGET/release/hatch-shim"         "dist/staging-$TARGET/"
           cp "target/$TARGET/release/hatch-linux-helper" "dist/staging-$TARGET/"
           cp LICENSE README.md "dist/staging-$TARGET/"
-          tar -czf "dist/hatch-$TARGET.tar.gz" -C "dist/staging-$TARGET" .
-          (cd dist && shasum -a 256 "hatch-$TARGET.tar.gz" > "hatch-$TARGET.tar.gz.sha256")
+          tar -czf "dist/hatch-$VERSION-$TARGET.tar.gz" -C "dist/staging-$TARGET" .
+          (cd dist && shasum -a 256 "hatch-$VERSION-$TARGET.tar.gz" > "hatch-$VERSION-$TARGET.tar.gz.sha256")
       - name: package deb
         run: |
           cargo deb --target "$TARGET" -p hatch-cli --no-build --no-strip
@@ -77,27 +96,18 @@ jobs:
             dist/*.rpm.sha256
 
   build-macos:
+    needs: meta
     runs-on: macos-14
     env:
-      VERSION_INPUT: ${{ inputs.version }}
-      REF_NAME: ${{ github.ref_name }}
+      VERSION: ${{ needs.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
       - uses: Swatinem/rust-cache@v2
-      - name: resolve version
-        id: ver
-        run: |
-          if [ -n "${VERSION_INPUT:-}" ]; then
-            echo "version=$VERSION_INPUT" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          fi
       - name: build universal binaries
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
           APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
           APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
           APPLE_NOTARY_PROFILE: ${{ secrets.APPLE_NOTARY_PROFILE }}
@@ -115,25 +125,55 @@ jobs:
             done
             tar -czf "dist/hatch-$VERSION-universal-apple-darwin.tar.gz" \
               -C dist hatch hatch-daemon hatch-shim
+            (cd dist && shasum -a 256 "hatch-$VERSION-universal-apple-darwin.tar.gz" \
+              > "hatch-$VERSION-universal-apple-darwin.tar.gz.sha256")
           fi
       - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: |
             dist/*.pkg
+            dist/*.pkg.sha256
             dist/*.tar.gz
+            dist/*.tar.gz.sha256
 
   publish:
     needs:
+      - meta
       - build-linux
       - build-macos
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
+      - name: flatten and aggregate checksums
+        id: assemble
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec cp -n {} release-assets/ \;
+          (cd release-assets && find . -maxdepth 1 -name '*.sha256' -print0 \
+            | xargs -0 cat | sort > SHA256SUMS && find . -maxdepth 1 -name '*.sha256' -delete)
+          ls -la release-assets/
+          echo "--- SHA256SUMS ---"
+          cat release-assets/SHA256SUMS
+      - name: resolve release notes
+        id: notes
+        run: |
+          NOTES_PATH="docs/releases/v${VERSION}.md"
+          if [ -f "$NOTES_PATH" ]; then
+            echo "found release notes at $NOTES_PATH"
+            echo "path=$NOTES_PATH" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No release notes at $NOTES_PATH; release body will be auto-generated"
+            echo "path=" >> "$GITHUB_OUTPUT"
+          fi
       - uses: softprops/action-gh-release@v3
         with:
-          files: artifacts/**/*
+          files: release-assets/*
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: true
