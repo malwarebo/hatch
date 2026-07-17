@@ -64,6 +64,19 @@ audited to JSONL with a hash chain.
 
 ## Install
 
+Quickest path (Linux and macOS). The script detects your platform and
+architecture, downloads the matching artifact from the latest release,
+verifies it, and installs the binaries:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/malwarebo/hatch/main/install.sh | sh
+```
+
+If [minisign](https://jedisct1.github.io/minisign/) is installed the script
+verifies the release signature against the committed `hatch.pub`; otherwise it
+falls back to the `SHA256SUMS` checksum. Set `HATCH_INSTALL_DIR` to override the
+install location (default `/usr/local/bin`, or `~/.local/bin` when not root).
+
 Tagging `vX.Y.Z` triggers `.github/workflows/release.yml`, which builds the
 following artifacts and attaches them to the [GitHub Release](https://github.com/malwarebo/hatch/releases):
 
@@ -85,6 +98,24 @@ following artifacts and attaches them to the [GitHub Release](https://github.com
   and double-click. When the workflow is supplied with Apple Developer credentials,
   the pkg is signed and notarized and installs a launchd agent at
   `/Library/LaunchAgents/sh.hatch.daemon.plist`.
+
+### Verify downloads
+
+Every release ships a `SHA256SUMS` file. After downloading one or more assets
+into the same directory:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+When the release is signed, each asset (and `SHA256SUMS`) has a matching
+`.minisig`. Verify provenance with [minisign](https://jedisct1.github.io/minisign/)
+and the project's public key (`hatch.pub`, published at the repository root
+once a signing key is in place):
+
+```bash
+minisign -Vm SHA256SUMS -p hatch.pub
+```
 
 Building packages locally:
 
@@ -267,11 +298,8 @@ Items that require external action:
   in CI, but the namespace + cgroup + iptables wiring in `hatch-sandbox-linux`
   and the Landlock + seccomp filters applied by `hatch-linux-helper` only
   run end-to-end on a real host.
-- Release-artifact signing. The release workflow currently produces a
-  `SHA256SUMS` file alongside the binaries, but the artifacts themselves
-  are unsigned. minisign or Sigstore (`cosign`) signing belongs in `v0.2`,
-  along with a `hatch.pub` key checked into the repository.
-- One-line installer. A `curl | sh` installer that auto-detects platform
-  and arch, downloads the right artifact, verifies its signature, and
-  enables the daemon (systemd user unit on Linux, `launchd` agent on
-  macOS) belongs in `v0.2`.
+- Release-artifact signing key. The release workflow signs every artifact
+  with minisign when the `MINISIGN_KEY` (and optional `MINISIGN_PASSWORD`)
+  secret is set; until a maintainer generates a keypair
+  (`minisign -G -p hatch.pub -s hatch.key`), commits `hatch.pub`, and stores
+  the private key as a secret, releases fall back to `SHA256SUMS` only.
