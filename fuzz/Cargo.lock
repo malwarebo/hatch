@@ -633,7 +633,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hatch-audit"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "serde",
@@ -647,7 +647,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "blake3",
@@ -677,7 +677,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "glob",
@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-proxy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "futures",
