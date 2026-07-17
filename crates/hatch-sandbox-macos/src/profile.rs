@@ -9,8 +9,6 @@ pub fn render_sandbox_exec_profile(
 ) -> String {
     let mut sb = String::new();
     sb.push_str("(version 1)\n");
-    // Import the BSD baseline first: without it, dyld/libSystem initialization
-    // is denied and the sandboxed process aborts (SIGABRT) before it runs.
     sb.push_str("(import \"bsd.sb\")\n");
     sb.push_str("(deny default)\n\n");
 
@@ -60,30 +58,34 @@ pub fn render_sandbox_exec_profile(
     );
     sb.push('\n');
 
-    // Only emit outbound rules for valid ports. A port of 0 means the proxy /
-    // DNS resolver is disabled; sandbox-exec rejects "127.0.0.1:0" outright and
-    // aborts the whole process, so the rule must be omitted in that case.
     if proxy_port != 0 {
         let _ = writeln!(
             sb,
-            "(allow network-outbound (remote tcp \"127.0.0.1:{proxy_port}\"))"
+            "(allow network-outbound (remote tcp \"localhost:{proxy_port}\"))"
         );
     }
     if dns_port != 0 {
         let _ = writeln!(
             sb,
-            "(allow network-outbound (remote udp \"127.0.0.1:{dns_port}\"))"
+            "(allow network-outbound (remote udp \"localhost:{dns_port}\"))"
         );
     }
     sb.push('\n');
 
-    if policy.manifest.exec.allow_subprocess {
-        if policy.manifest.exec.allow_binaries.is_empty() {
-            sb.push_str("(allow process-exec)\n");
-        } else {
-            for bin in &policy.manifest.exec.allow_binaries {
-                let _ = writeln!(sb, "(allow process-exec (literal \"{}\"))", sb_quote(bin));
-            }
+    if policy.manifest.exec.allow_subprocess && policy.manifest.exec.allow_binaries.is_empty() {
+        sb.push_str("(allow process-exec*)\n");
+    } else {
+        let _ = writeln!(
+            sb,
+            "(allow process-exec* (literal \"{}\"))",
+            sb_quote(&sandbox_path(&policy.manifest.command.program))
+        );
+        for bin in &policy.manifest.exec.allow_binaries {
+            let _ = writeln!(
+                sb,
+                "(allow process-exec* (literal \"{}\"))",
+                sb_quote(&sandbox_path(bin))
+            );
         }
     }
 
@@ -153,13 +155,6 @@ fn sb_quote(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// Resolve a filesystem path to the form the macOS sandbox matches against.
-///
-/// macOS canonicalizes symlinks before evaluating sandbox rules (`/tmp` ->
-/// `/private/tmp`, `/var` -> `/private/var`, `/etc` -> `/private/etc`), so a
-/// rule written against the un-resolved path never matches and access is
-/// wrongly denied. Canonicalize when the path exists; otherwise resolve a
-/// known symlinked prefix; otherwise fall back to the original.
 fn sandbox_path(path: &str) -> String {
     if let Ok(real) = std::fs::canonicalize(path) {
         return real.to_string_lossy().into_owned();
@@ -196,10 +191,8 @@ mod tests {
         assert!(sb.starts_with("(version 1)"));
         assert!(sb.contains("(import \"bsd.sb\")"));
         assert!(sb.contains("(deny default)"));
-        assert!(sb.contains("127.0.0.1:8443"));
-        assert!(sb.contains("127.0.0.1:1053"));
-        // /tmp is a symlink to /private/tmp on macOS; the rule must use the
-        // resolved path or the sandbox denies access to it.
+        assert!(sb.contains("localhost:8443"));
+        assert!(sb.contains("localhost:1053"));
         assert!(sb.contains("subpath \"/private/tmp/x\""));
     }
 
@@ -220,10 +213,8 @@ mod tests {
     fn no_network_rule_when_ports_disabled() {
         let m = Manifest::parse_str(MIN).unwrap();
         let policy = compile(&m, &TemplateContext::empty()).unwrap();
-        // proxy disabled (port 0): sandbox-exec rejects "127.0.0.1:0", so the
-        // rule must be omitted entirely rather than emitted with port 0.
         let sb = render_sandbox_exec_profile(&policy, "/tmp/x", 0, 0);
-        assert!(!sb.contains("127.0.0.1:0"));
+        assert!(!sb.contains("localhost:0"));
         assert!(!sb.contains("network-outbound"));
     }
 
@@ -232,6 +223,16 @@ mod tests {
         assert_eq!(sandbox_path("/var/folders/x"), "/private/var/folders/x");
         assert_eq!(sandbox_path("/etc/hosts.d/x"), "/private/etc/hosts.d/x");
         assert_eq!(sandbox_path("/opt/tool"), "/opt/tool");
+    }
+
+    #[test]
+    fn program_is_exec_allowed_even_without_subprocess() {
+        let m = Manifest::parse_str(MIN).unwrap();
+        assert!(!m.exec.allow_subprocess);
+        let policy = compile(&m, &TemplateContext::empty()).unwrap();
+        let sb = render_sandbox_exec_profile(&policy, "/tmp/x", 8443, 1053);
+        assert!(sb.contains("(allow process-exec* (literal \"/bin/cat\"))"));
+        assert!(!sb.contains("(allow process-exec*)\n"));
     }
 
     #[test]

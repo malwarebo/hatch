@@ -102,6 +102,20 @@ impl MacosBackend {
         cmd.env("HATCH_SERVER_ID", &id);
         cmd.env("HATCH_RUNTIME_DIR", &server_runtime);
 
+        if self.proxy_port != 0 {
+            let proxy_url = format!("http://127.0.0.1:{}", self.proxy_port);
+            for key in [
+                "HTTPS_PROXY",
+                "https_proxy",
+                "HTTP_PROXY",
+                "http_proxy",
+                "ALL_PROXY",
+                "all_proxy",
+            ] {
+                cmd.env(key, &proxy_url);
+            }
+        }
+
         if let Some(wd) = &m.command.working_dir {
             if !wd.is_empty() {
                 cmd.current_dir(wd);
