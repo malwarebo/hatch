@@ -24,7 +24,7 @@ exclude = ["fuzz"]
 version = "0.1.2"
 edition = "2021"
 rust-version = "1.83"
-license = "Apache-2.0"
+license = "LicenseRef-Proprietary"
 repository = "https://github.com/malwarebo/hatch"
 authors = ["The hatch authors"]
 

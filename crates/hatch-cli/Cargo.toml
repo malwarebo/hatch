@@ -39,8 +39,7 @@ hatch-sandbox-linux = { path = "../hatch-sandbox-linux" }
 [package.metadata.deb]
 name = "hatch"
 maintainer = "malwarebo <malwarebo@users.noreply.github.com>"
-copyright = "2026 The hatch authors"
-license-file = ["../../LICENSE", "4"]
+copyright = "2026 hatch"
 extended-description = """\
 hatch sandboxes MCP (Model Context Protocol) servers on Linux and macOS,
 enforcing per-server network, filesystem, and protocol-level policies
@@ -55,13 +54,12 @@ assets = [
     ["target/release/hatch-shim",          "usr/bin/hatch-shim",          "755"],
     ["target/release/hatch-linux-helper",  "usr/bin/hatch-linux-helper",  "755"],
     ["../../packaging/systemd/hatch-daemon.service", "usr/lib/systemd/user/hatch-daemon.service", "644"],
-    ["../../LICENSE",   "usr/share/doc/hatch/LICENSE",   "644"],
     ["../../README.md", "usr/share/doc/hatch/README.md", "644"],
 ]
 
 [package.metadata.generate-rpm]
 name = "hatch"
-license = "Apache-2.0"
+license = "Proprietary"
 summary = "Capability-based isolation for AI tool servers"
 requires = { iproute = "*", iptables = "*" }
 assets = [
@@ -70,6 +68,5 @@ assets = [
     { source = "target/release/hatch-shim",         dest = "/usr/bin/hatch-shim",         mode = "755" },
     { source = "target/release/hatch-linux-helper", dest = "/usr/bin/hatch-linux-helper", mode = "755" },
     { source = "../../packaging/systemd/hatch-daemon.service", dest = "/usr/lib/systemd/user/hatch-daemon.service", mode = "644", config = false },
-    { source = "../../LICENSE",   dest = "/usr/share/doc/hatch/LICENSE",   mode = "644", doc = true },
     { source = "../../README.md", dest = "/usr/share/doc/hatch/README.md", mode = "644", doc = true },
 ]

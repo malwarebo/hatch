@@ -62,62 +62,29 @@ server is forced through the SNI proxy and DNS resolver, both of which only
 permit destinations declared in the server's signed manifest. Everything is
 audited to JSONL with a hash chain.
 
-## Install
-
-Quickest path (Linux and macOS). The script detects your platform and
-architecture, downloads the matching artifact from the latest release,
-verifies it, and installs the binaries:
+## Build
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/malwarebo/hatch/main/install.sh | sh
+cargo build --release --workspace
+cargo test --workspace
 ```
 
-If [minisign](https://jedisct1.github.io/minisign/) is installed the script
-verifies the release signature against the committed `hatch.pub`; otherwise it
-falls back to the `SHA256SUMS` checksum. Set `HATCH_INSTALL_DIR` to override the
-install location (default `/usr/local/bin`, or `~/.local/bin` when not root).
+Release binaries land in `target/release/`: `hatch`, `hatch-daemon`,
+`hatch-shim`, and (on Linux) `hatch-linux-helper`.
 
-Tagging `vX.Y.Z` triggers `.github/workflows/release.yml`, which builds the
-following artifacts and attaches them to the [GitHub Release](https://github.com/malwarebo/hatch/releases):
+Requirements: Rust stable (1.83+).
 
-- **Debian / Ubuntu**
+- On Linux: a kernel with user namespaces, cgroups v2, seccomp, and Landlock (5.13+).
+- On macOS: 13 or newer.
 
-  ```bash
-  curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.2-1_amd64.deb
-  sudo apt install ./hatch_0.1.2-1_amd64.deb
-  ```
+> Note: there is no Windows support yet.
 
-- **Fedora / RHEL**
+### Packages
 
-  ```bash
-  sudo dnf install https://github.com/malwarebo/hatch/releases/latest/download/hatch-0.1.2-1.x86_64.rpm
-  ```
-
-- **macOS `.pkg`**
-  Download from the [latest release](https://github.com/malwarebo/hatch/releases/latest)
-  and double-click. When the workflow is supplied with Apple Developer credentials,
-  the pkg is signed and notarized and installs a launchd agent at
-  `/Library/LaunchAgents/sh.hatch.daemon.plist`.
-
-### Verify downloads
-
-Every release ships a `SHA256SUMS` file. After downloading one or more assets
-into the same directory:
-
-```bash
-sha256sum -c SHA256SUMS --ignore-missing
-```
-
-When the release is signed, each asset (and `SHA256SUMS`) has a matching
-`.minisig`. Verify provenance with [minisign](https://jedisct1.github.io/minisign/)
-and the project's public key (`hatch.pub`, published at the repository root
-once a signing key is in place):
-
-```bash
-minisign -Vm SHA256SUMS -p hatch.pub
-```
-
-Building packages locally:
+The release workflow (`.github/workflows/release.yml`, triggered by a
+`vX.Y.Z` tag) builds `.deb` / `.rpm` / tarball / macOS artifacts and signs each
+with [minisign](https://jedisct1.github.io/minisign/) when `MINISIGN_KEY` is
+configured. To build packages locally:
 
 ```bash
 cargo install cargo-deb cargo-generate-rpm
@@ -127,34 +94,18 @@ cargo deb -p hatch-cli --no-build --no-strip   # -> target/debian/hatch_*.deb
 ```
 
 `cargo generate-rpm` doesn't resolve nested workspace members via `-p`, so
-run it from inside `crates/hatch-cli/`.
+run it from inside `crates/hatch-cli/`. The macOS signed `.pkg` is produced by
+`scripts/notarize-macos.sh <version>` with `APPLE_DEVELOPER_ID_APPLICATION`,
+`APPLE_DEVELOPER_ID_INSTALLER`, and `APPLE_NOTARY_PROFILE` set.
 
-For the signed `.pkg`, run `scripts/notarize-macos.sh <version>` with
-`APPLE_DEVELOPER_ID_APPLICATION`, `APPLE_DEVELOPER_ID_INSTALLER`, and
-`APPLE_NOTARY_PROFILE` set in your environment.
-
-Linux systemd user unit lives at
-[`packaging/systemd/hatch-daemon.service`](packaging/systemd/hatch-daemon.service);
-after install:
+The Linux systemd user unit
+([`packaging/systemd/hatch-daemon.service`](packaging/systemd/hatch-daemon.service))
+is installed by the `.deb`/`.rpm`; enable it with:
 
 ```bash
 systemctl --user daemon-reload
 systemctl --user enable --now hatch-daemon
 ```
-
-## Build
-
-```bash
-cargo build --workspace
-cargo test --workspace
-```
-
-Requirements: Rust stable (1.83+). 
-
-- On Linux: a kernel with user namespaces, cgroups v2, seccomp, and Landlock (5.13+).
-- On macOS: 13 or newer.
-
-> Note: there is no windows support yet
 
 ## Run
 
@@ -279,23 +230,17 @@ Full schema reference: [`docs/src/reference/manifest-schema.md`](docs/src/refere
 and [`manifests/schema/manifest.schema.json`](manifests/schema/manifest.schema.json).
 
 
-## Outstanding
+## Status
 
-Items that require external action:
+Not yet done:
 
-- Apple Developer enrollment, signing certificates, and a notarytool keychain
-  profile. The scripts in `scripts/notarize-macos.sh` and `scripts/release.sh`
-  read `APPLE_DEVELOPER_ID_APPLICATION`, `APPLE_DEVELOPER_ID_INSTALLER`, and
-  `APPLE_NOTARY_PROFILE` from the environment or GitHub Action secrets.
-- Endpoint Security entitlement application. The macOS backend has the
-  feature-flag scaffolding ready for the entitled variant when granted.
-- The `manifests.hatch.sh` static registry browser. The registry-side TOML and
-  schema are in `manifests/`; the static site is a separate Astro project not
-  in this repository.
-- Live exercise of the Linux backend on a real Linux host with user
-  namespaces, cgroups v2, Landlock 5.13+, and seccomp-bpf. The workspace
-  cross-compiles cleanly for `x86_64-unknown-linux-gnu` / `aarch64-unknown-linux-gnu`
-  in CI, but the namespace + cgroup + iptables wiring in `hatch-sandbox-linux`
-  and the Landlock + seccomp filters applied by `hatch-linux-helper` only
-  run end-to-end on a real host.
-- Third-party security audit (Trail of Bits, Cure53, NCC, or equivalent).
+- **Live Linux backend validation.** The workspace cross-compiles cleanly for
+  `x86_64-unknown-linux-gnu` / `aarch64-unknown-linux-gnu` in CI, but the
+  namespace + cgroup + iptables wiring in `hatch-sandbox-linux` and the
+  Landlock + seccomp filters in `hatch-linux-helper` have not yet run
+  end-to-end on a real host (kernel 5.13+, user namespaces, cgroups v2). This
+  is the top priority — the core enforcement is unproven on real hardware.
+- **macOS distribution signing.** Requires Apple Developer enrollment; the
+  notarization scripts (`scripts/notarize-macos.sh`) read the credentials from
+  the environment or Action secrets when available.
+- **macOS Endpoint Security** entitlement (scaffolded, pending Apple grant).

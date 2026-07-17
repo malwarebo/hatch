@@ -12,5 +12,5 @@ Each subdirectory under `servers/` is one manifest. A manifest must:
 - Include a `README.md` explaining what the server does and why each
   permission is needed.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and the schema in
+See the schema in
 [`schema/manifest.schema.json`](schema/manifest.schema.json).

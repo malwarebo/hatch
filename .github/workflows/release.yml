@@ -71,7 +71,7 @@ jobs:
           cp "target/$TARGET/release/hatch-daemon"       "dist/staging-$TARGET/"
           cp "target/$TARGET/release/hatch-shim"         "dist/staging-$TARGET/"
           cp "target/$TARGET/release/hatch-linux-helper" "dist/staging-$TARGET/"
-          cp LICENSE README.md "dist/staging-$TARGET/"
+          cp README.md "dist/staging-$TARGET/"
           tar -czf "dist/hatch-$VERSION-$TARGET.tar.gz" -C "dist/staging-$TARGET" .
           (cd dist && shasum -a 256 "hatch-$VERSION-$TARGET.tar.gz" > "hatch-$VERSION-$TARGET.tar.gz.sha256")
       - name: package deb

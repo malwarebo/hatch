@@ -6,7 +6,10 @@ deny = [
 ]
 
 [licenses]
+# First-party workspace crates are proprietary; third-party deps must still
+# carry one of the permissive licenses below (no copyleft into proprietary code).
 allow = [
+    "LicenseRef-Proprietary",
     "Apache-2.0",
     "MIT",
     "BSD-2-Clause",
