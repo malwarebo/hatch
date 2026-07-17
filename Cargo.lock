@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-audit"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
  "serde",
@@ -1023,7 +1023,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
  "blake3",
@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-daemon"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1098,7 +1098,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-hostcfg"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dirs",
  "serde",
@@ -1111,7 +1111,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-ipc"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "dirs",
  "serde",
@@ -1123,7 +1123,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-linux-helper"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "landlock",
  "libc",
@@ -1134,7 +1134,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-protocol"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytes",
  "glob",
@@ -1151,7 +1151,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-proxy"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytes",
  "futures",
@@ -1166,7 +1166,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-registry"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -1184,7 +1184,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-sandbox"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "hatch-core",
  "hatch-sandbox-linux",
@@ -1198,7 +1198,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-sandbox-linux"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "hatch-core",
@@ -1214,7 +1214,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-sandbox-macos"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "hatch-core",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-shim"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1244,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-state"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "rusqlite",
  "serde",
@@ -1258,7 +1258,7 @@ dependencies = [
 
 [[package]]
 name = "hatch-tests"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "hatch-audit",

@@ -83,14 +83,14 @@ following artifacts and attaches them to the [GitHub Release](https://github.com
 - **Debian / Ubuntu**
 
   ```bash
-  curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.1-1_amd64.deb
-  sudo apt install ./hatch_0.1.1-1_amd64.deb
+  curl -LO https://github.com/malwarebo/hatch/releases/latest/download/hatch_0.1.2-1_amd64.deb
+  sudo apt install ./hatch_0.1.2-1_amd64.deb
   ```
 
 - **Fedora / RHEL**
 
   ```bash
-  sudo dnf install https://github.com/malwarebo/hatch/releases/latest/download/hatch-0.1.1-1.x86_64.rpm
+  sudo dnf install https://github.com/malwarebo/hatch/releases/latest/download/hatch-0.1.2-1.x86_64.rpm
   ```
 
 - **macOS `.pkg`**
@@ -298,8 +298,4 @@ Items that require external action:
   in CI, but the namespace + cgroup + iptables wiring in `hatch-sandbox-linux`
   and the Landlock + seccomp filters applied by `hatch-linux-helper` only
   run end-to-end on a real host.
-- Release-artifact signing key. The release workflow signs every artifact
-  with minisign when the `MINISIGN_KEY` (and optional `MINISIGN_PASSWORD`)
-  secret is set; until a maintainer generates a keypair
-  (`minisign -G -p hatch.pub -s hatch.key`), commits `hatch.pub`, and stores
-  the private key as a secret, releases fall back to `SHA256SUMS` only.
+- Third-party security audit (Trail of Bits, Cure53, NCC, or equivalent).
