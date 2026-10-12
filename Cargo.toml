@@ -64,7 +64,7 @@ time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"
 glob = "0.3"
 regex = "1"
 zstd = "0.13"
-dirs = "6"
+dirs = "7"
 
 ratatui = "0.30"
 crossterm = "0.29"
